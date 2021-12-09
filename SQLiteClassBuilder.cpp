@@ -22,11 +22,22 @@ bool FileExists(const std::string &path)
 	return (stat(path.c_str(), &buffer) == 0);
 }
 
+const std::string EarlyExitErrMsg = "\
+\
+**********************************************\
+Performing early exit due to error!\
+**********************************************\
+\
+";
+
+
+#define V_COUT(VB, V)		{if (sqlite3pp::sql_base::GetVerbosityLevel() >= sqlite3pp::VBLV_##VB) {std::cout << V << std::endl;} }
+
 int main(int argc, char* argv[])
 {
 	cxxopts::Options options("SQLiteClassBuilder.exe", "SQLiteClassBuilder: Creates type safe SQL classes.\nBy David Maisonave (www.axter.com)");
 	options
-		.positional_help("[optional args]")
+		//.positional_help("[optional args]")
 		.allow_unrecognised_options()
 		.show_positional_help();
 
@@ -37,11 +48,10 @@ int main(int argc, char* argv[])
 		// Common
 		("d,database", "File name of the SQLite database. Required argument!! Example: SQLiteClassBuilder -d\"C:\\Data\\myDatabase.db\"", cxxopts::value<std::string>()->default_value(""))
 		("w,where", "Optional: And-Where-Clause. Can be used to specify a set of tables/views to process.\nExample1:\nSQLiteClassBuilder -d\"my.db\" -w\"AND tbl_name like 'Personnel%'\"\nExample2:\nSQLiteClassBuilder -d\"my.db\" -w\"AND tbl_name NOT like 'zzTest%'\"", cxxopts::value<std::string>()->default_value(""))
-
-		("p,pause", "Pause before program exit.", cxxopts::value<bool>()->default_value("false"))
+		("v,verbosity", "Verbosity level. Default: 3.  0=No-output; 1=Error-Output-Only; 2=Err+Warn; 3=Err+Wrn+Info; 4=Err+Wrn+Info+Debug; 5=Err+Wrn+Info+Debug+Details", cxxopts::value<int>()->default_value("3"))
+		("p,pause", "Pause before program exit. Note: If verbosity level 0, program will exit without pause unless error occurs.", cxxopts::value<bool>()->default_value("true"))
 		("h,help", "Print usage")
 		// ("d,debug", "Enable debugging", cxxopts::value<bool>()->default_value("false")) // ToDo: Delete this argument if it doesn't get used.
-		// ("v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
 		// ("c,clipboard", "Populate bla bla from clipboard", cxxopts::value<bool>()->default_value("false"), "bool")
 		;
 
@@ -55,7 +65,7 @@ int main(int argc, char* argv[])
 		("g,xgetfnc", "Exclude class get functions. Default: class get_* method is created for each data member.", cxxopts::value<bool>()->default_value("false"))
 		("s,xsetfnc", "Exclude class set functions. Default: class set_* method is created for each data member.", cxxopts::value<bool>()->default_value("false"))
 		("o,xostream", "Exclude operator<< function. Default: An ostream operator<< function is created for each class.", cxxopts::value<bool>()->default_value("false"))
-		("v,delimit", "Only used with opereator<<, and can be a desired string value to mark seperation between field output. ie:  \", \", \", \", \" \", \"; \", \"\".", cxxopts::value<std::string>()->default_value(","))
+		("e,delimit", "Only used with opereator<<, and can be a desired string value to mark seperation between field output. ie:  \", \", \", \", \" \", \"; \", \"\".", cxxopts::value<std::string>()->default_value(","))
 		("c,xcmmnt", "Exclude comments. Default: Usage comments are created for each class.", cxxopts::value<bool>()->default_value("false"))
 		("x,xinterf", "Exclude SQLite3pp::Table interface. Default: A set of methods (getTableName, getColumnNames, getSelecColumnNames, and getStreamData) are created for each class in order to interface with SQLite3pp::Table.", cxxopts::value<bool>()->default_value("false"))
 		("b,basic_t", "Only use C++ basic types (int, double, std::string, and std::wstring). Default: Use SQLite2 and SQLite3 sub types (Text, Integer, Blob, Clob, Date, Datetime, Boolean, Bigint, Varchar, Nchr, etc...).", cxxopts::value<bool>()->default_value("false"))
@@ -73,38 +83,93 @@ int main(int argc, char* argv[])
 		("q,dhead", "Delete all sql_*.h files before creating headers.", cxxopts::value<bool>()->default_value("true"))
 		;
 	auto arg_result = options.parse(argc, argv);
-	std::string dbname = arg_result["database"].as<std::string>();
-	if (arg_result.count("help") || !dbname.size())
+	const int VerbosityLevel = arg_result["verbosity"].as<int>();
+	sqlite3pp::sql_base::SetVerbosityLevel(static_cast<sqlite3pp::VerbosityLevels>(VerbosityLevel));
+
+	std::string db_file_name = arg_result["database"].as<std::string>();
+	if (db_file_name.size())
+		V_COUT(DETAIL, "Using argument -d for DB file name. " << db_file_name)
+	else if (argc > 1)
+	{
+		if (argv[1][0] != '-') // Check if it's the first argument
+		{
+			db_file_name = argv[1];
+			V_COUT(DEBUG, "Using first argument for DB file name. " << db_file_name);
+		}
+		else if (argc > 3 && argv[argc-2][0] != '-') // Check if it's the last argument
+		{
+			db_file_name = argv[argc-1];
+			V_COUT(DEBUG, "Using last argument for DB file name. " << db_file_name);
+		}
+	}
+
+	if (arg_result.count("help") || !db_file_name.size())
 	{
 		std::cout << options.help().c_str() << std::endl << std::endl;
 		system("pause");
 		exit(0);
 	}
 
+	if (!FileExists(db_file_name))
+	{
+		V_COUT(ERROR, "Error: Could not find database file '" << db_file_name << "'." << std::endl);
+		V_COUT(ERROR, EarlyExitErrMsg);
+		exit(-1);
+	}
+
 	std::string TargetPath = arg_result["folder"].as<std::string>();
 	TargetPath = Common::rtrim(TargetPath, "\\");
 	if (TargetPath.size())
 	{
+		V_COUT(DETAIL, "Using destination path '" << TargetPath << "'.");
 		if (arg_result["rmdir"].as<bool>())
-			_rmdir(TargetPath.c_str());
-		if (!FileExists(TargetPath.c_str()))
+		{
+			if (sqlite3pp::SQLiteClassBuilder::dir_exists(TargetPath.c_str()))
+			{
+				V_COUT(INFO, "Removing directory '" << TargetPath << "' before creating headers.");
+				_rmdir(TargetPath.c_str());
+			}
+		}
+
+		if (!sqlite3pp::SQLiteClassBuilder::dir_exists(TargetPath.c_str()))
+		{
+			V_COUT(INFO, "Creating target path '" << TargetPath << "'.");
 			_mkdir(TargetPath.c_str());
+		}
 	}
+
+	std::string FileExt = arg_result["fileext"].as<std::string>().size() ? arg_result["fileext"].as<std::string>() : "h";
+	V_COUT(DETAIL, "Files created will use file extension '" << FileExt << "'.");
 	
 	if (arg_result["dhead"].as<bool>())
 	{
-		std::string Command = "del /F /Q " + TargetPath + "\\" + arg_result["prefix"].as<std::string>() + "*" + arg_result["postfix"].as<std::string>() + "." + arg_result["fileext"].as<std::string>();
+		V_COUT(INFO, "Deleting exsiting headers.");
+		std::string Command = "del /F /Q " + TargetPath + "\\" + arg_result["prefix"].as<std::string>() + "*" + arg_result["postfix"].as<std::string>() + "." + FileExt;
+		V_COUT(DEBUG, "Deleting exsiting headers. by using command:" << Command);
 		system(Command.c_str()); // ToDo: Create a cleaner method for this.
 	}
 
 	//StrOptions
 	sqlite3pp::StrOptions	my_StrOptions	= sqlite3pp::SqlBld::strOpt_std_string;
 	if (arg_result["strtype"].as<std::string>() == "wstring" || arg_result["strtype"].as<std::string>() == "std::wstring")
+	{
 		my_StrOptions = sqlite3pp::SqlBld::strOpt_std_wstring;
+		V_COUT(DETAIL, "Using string type." << my_StrOptions.str_type);
+	}
 	else if (arg_result["strtype"].as<std::string>() == "tstring")
+	{
 		my_StrOptions = sqlite3pp::SqlBld::strOpt_sql_tstring;
+		V_COUT(DETAIL, "Using string type." << my_StrOptions.str_type);
+	}
 	else if (arg_result["strtype"].as<std::string>() == "tstring_t")
+	{
 		my_StrOptions = sqlite3pp::SqlBld::strOpt_sql_tstring_T;
+		V_COUT(DETAIL, "Using string type." << my_StrOptions.str_type);
+	}
+	else
+	{
+		V_COUT(DETAIL, "Using default string type std::string.");
+	}
 
 	// MiscOptions
 	sqlite3pp::MiscOptions	my_MiscOptions	= sqlite3pp::SqlBld::MiscOpt_max;
@@ -122,21 +187,22 @@ int main(int argc, char* argv[])
 	//HeaderOpt
 	sqlite3pp::HeaderOpt	my_HeaderOpt	= sqlite3pp::SqlBld::HeaderDefaultOpt;
 	my_HeaderOpt.dest_folder = TargetPath + "\\";
-	my_HeaderOpt.file_type = arg_result["fileext"].as<std::string>().size() ? arg_result["fileext"].as<std::string>() : "h";
+	my_HeaderOpt.file_type = FileExt;
 	my_HeaderOpt.header_postfix = arg_result["postfix"].as<std::string>();
 	my_HeaderOpt.header_prefix = arg_result["prefix"].as<std::string>();
 	my_HeaderOpt.header_include = arg_result["include"].as<std::string>();
 
 	sqlite3pp::SQLiteClassBuilder
 		createsqlitetableclass(
-			dbname
+			db_file_name
 			, my_StrOptions
 			, arg_result["where"].as<std::string>()
 			, my_MiscOptions
 			, my_HeaderOpt
 		);
 
-	if (arg_result["pause"].as<bool>())
+	V_COUT(INFO, "\n\n***************************************\nProcess Complete.\nCreated " << createsqlitetableclass.GetHeadersCreated().size() << " classes and headers.\n***************************************\n");
+	if (arg_result["pause"].as<bool>() && VerbosityLevel)
 		system("pause");
 
 	return 0;
