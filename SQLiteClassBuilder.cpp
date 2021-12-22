@@ -51,7 +51,7 @@ int main(int argc, char* argv[])
 		("d,database", "File name of the SQLite database. Required argument!! Example: SQLiteClassBuilder -d\"C:\\Data\\myDatabase.db\"", cxxopts::value<std::string>()->default_value(""))
 		("w,where", "Optional: And-Where-Clause. Can be used to specify a set of tables/views to process.\nExample1:\nSQLiteClassBuilder -d\"my.db\" -w\"AND tbl_name like 'Personnel%'\"\nExample2:\nSQLiteClassBuilder -d\"my.db\" -w\"AND tbl_name NOT like 'zzTest%'\"", cxxopts::value<std::string>()->default_value(""))
 		("v,verbosity", "Verbosity level. Default: 3.  0=No-output; 1=Error-Output-Only; 2=Err+Warn; 3=Err+Wrn+Info; 4=Err+Wrn+Info+Debug; 5=Err+Wrn+Info+Debug+Details", cxxopts::value<int>()->default_value("3"))
-		("p,pause", "Pause before program exit. Note: If verbosity level 0, program will exit without pause unless error occurs.", cxxopts::value<bool>()->default_value("true"))
+		("p,nopause", "Do NOT pause before program exit. Note: If verbosity level 0, program will exit without pause unless error occurs.", cxxopts::value<bool>()->default_value("false"))
 		("h,help", "Print usage")
 		// ("d,debug", "Enable debugging", cxxopts::value<bool>()->default_value("false")) // ToDo: Delete this argument if it doesn't get used.
 		// ("c,clipboard", "Populate bla bla from clipboard", cxxopts::value<bool>()->default_value("false"), "bool")
@@ -72,7 +72,7 @@ int main(int argc, char* argv[])
 		("x,xinterf", "Exclude SQLite3pp::Table interface. Default: A set of methods (getTableName, getColumnNames, getSelecColumnNames, and getStreamData) are created for each class in order to interface with SQLite3pp::Table.", cxxopts::value<bool>()->default_value("false"))
 		("b,basic_t", "Only use C++ basic types (int, double, std::string, and std::wstring). Default: Use SQLite2 and SQLite3 sub types (Text, Integer, Blob, Clob, Date, Datetime, Boolean, Bigint, Varchar, Nchr, etc...).", cxxopts::value<bool>()->default_value("false"))
 		("m,xvalid", "Exclude test validation examples in main header. Default: Test validation examples are created in main header.", cxxopts::value<bool>()->default_value("false"))
-		("n,cvalid", "Comment out example in main header. Default: Validation examples in main header are commented out.", cxxopts::value<bool>()->default_value("true"))
+		("n,cvalid", "Do NOT comment out example in main header. Default: Validation examples in main header are commented out.", cxxopts::value<bool>()->default_value("false"))
 		;
 	options.add_options("Header")
 		//HeaderOpt
@@ -80,9 +80,9 @@ int main(int argc, char* argv[])
 		("a,prefix", "Specify a desired prefix for created headers. Default: \"sql_\".", cxxopts::value<std::string>()->default_value("sql_"))
 		("z,postfix", "Optionally specify a desired postfix for created headers. Default: empty.", cxxopts::value<std::string>()->default_value(""))
 		("y,fileext", "File type to create (h, hpp, class, hxx). Note: If empty, default type is used. Default: \"h\".", cxxopts::value<std::string>()->default_value("h"))
-		("i,include", "#include to add to all headers. Note: If empty, no additional include is added. Default: \"sqlite3pp_ez.h\".", cxxopts::value<std::string>()->default_value("sqlite3pp_ez.h"))
+		("i,include", "#include to add to all headers. Note: If empty, no additional include is added. Default: \"..\\sqlite3pp_ez.h\".", cxxopts::value<std::string>()->default_value("..\\sqlite3pp_ez.h"))
 		("r,rmdir", "Remove destination directory before creating headers", cxxopts::value<bool>()->default_value("false"))
-		("q,dhead", "Delete all sql_*.h files before creating headers.", cxxopts::value<bool>()->default_value("true"))
+		("q,dhead", "Do NOT delete sql_*.h files before creating headers.", cxxopts::value<bool>()->default_value("false"))
 		;
 	auto arg_result = options.parse(argc, argv);
 	const int VerbosityLevel = arg_result["verbosity"].as<int>();
@@ -126,14 +126,14 @@ int main(int argc, char* argv[])
 		V_COUT(DETAIL, "Using destination path '" << TargetPath << "'.");
 		if (arg_result["rmdir"].as<bool>())
 		{
-			if (sqlite3pp::SQLiteClassBuilder::dir_exists(TargetPath.c_str()))
+			if (sqlite3pp::dir_exists(TargetPath.c_str()))
 			{
 				V_COUT(INFO, "Removing directory '" << TargetPath << "' before creating headers.");
 				_rmdir(TargetPath.c_str());
 			}
 		}
 
-		if (!sqlite3pp::SQLiteClassBuilder::dir_exists(TargetPath.c_str()))
+		if (!sqlite3pp::dir_exists(TargetPath.c_str()))
 		{
 			V_COUT(INFO, "Creating target path '" << TargetPath << "'.");
 			_mkdir(TargetPath.c_str());
@@ -143,7 +143,7 @@ int main(int argc, char* argv[])
 	std::string FileExt = arg_result["fileext"].as<std::string>().size() ? arg_result["fileext"].as<std::string>() : "h";
 	V_COUT(DETAIL, "Files created will use file extension '" << FileExt << "'.");
 	
-	if (arg_result["dhead"].as<bool>())
+	if (!arg_result["dhead"].as<bool>())
 	{
 		V_COUT(INFO, "Deleting exsiting headers.");
 		std::string Command = "del /F /Q " + TargetPath + "\\" + arg_result["prefix"].as<std::string>() + "*" + arg_result["postfix"].as<std::string>() + "." + FileExt;
@@ -184,10 +184,10 @@ int main(int argc, char* argv[])
 	my_MiscOptions.exclude_table_interface = arg_result["xinterf"].as<bool>();
 	my_MiscOptions.use_basic_types_only = arg_result["basic_t"].as<bool>();
 	my_MiscOptions.exclude_main_hdr_example = arg_result["xvalid"].as<bool>();
-	my_MiscOptions.exclude_comment_out_exampl = !arg_result["cvalid"].as<bool>();
+	my_MiscOptions.exclude_comment_out_exampl = arg_result["cvalid"].as<bool>();
 
 	//HeaderOpt
-	sqlite3pp::HeaderOpt	my_HeaderOpt	= sqlite3pp::SqlBld::HeaderDefaultOpt;
+	sqlite3pp::HeaderOpt	my_HeaderOpt	= sqlite3pp::SqlBld::HeadersCreatedSqlDir;
 	my_HeaderOpt.dest_folder = TargetPath + "\\";
 	my_HeaderOpt.file_type = FileExt;
 	my_HeaderOpt.header_postfix = arg_result["postfix"].as<std::string>();
@@ -204,7 +204,10 @@ int main(int argc, char* argv[])
 		);
 
 	V_COUT(INFO, "\n\n***************************************\nProcess Complete.\nCreated " << createsqlitetableclass.GetHeadersCreated().size() << " classes and headers.\n***************************************\n");
-	if (arg_result["pause"].as<bool>() && VerbosityLevel)
+
+	bool PauseBeforeExit = !arg_result["nopause"].as<bool>(); // Not Not
+
+	if (PauseBeforeExit && VerbosityLevel)
 		system("pause");
 
 	return 0;
