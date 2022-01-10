@@ -15,14 +15,6 @@
 #include <iostream>
 #include <string>
 #include <direct.h>
-#include <sys/stat.h>
-
-
-bool FileExists(const std::string &path)
-{
-	struct stat buffer;
-	return (stat(path.c_str(), &buffer) == 0);
-}
 
 const std::string EarlyExitErrMsg = "\
 \
@@ -112,7 +104,7 @@ int main(int argc, char* argv[])
 		exit(0);
 	}
 
-	if (!FileExists(db_file_name))
+	if (!sqlite3pp::file_exists(db_file_name))
 	{
 		V_COUT(ERROR, "Error: Could not find database file '" << db_file_name << "'." << std::endl);
 		V_COUT(ERROR, EarlyExitErrMsg);
