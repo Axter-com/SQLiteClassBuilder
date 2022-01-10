@@ -121,19 +121,48 @@ namespace sqlite3pp
 	std::wstring to_wstring(const std::wstring &src);// For template usage
 	std::string to_string(const wchar_t* src);
 	std::wstring to_wstring(const char* src);
-
+	std::string to_string(const Clob& src);
+	std::wstring to_wstring(const Clob& src);
+	std::string to_string(const Blob& src);
+	std::wstring to_wstring(const Blob& src);
+	std::string to_string(int src);
+	std::wstring to_wstring(int src);
+	std::wstring to_wstring(long long int src);
+	std::string to_string(long long int src);
+	std::wstring to_wstring(unsigned long long int src);
+	std::string to_string(unsigned long long int src);
+	std::string to_string(short int src);
+	std::wstring to_wstring(short int src);
+	std::string to_string(bool src);
+	std::wstring to_wstring(bool src);
+	std::string to_string(double src);
+	std::wstring to_wstring(double src);
+	std::string to_string(unsigned char src);
+	std::wstring to_wstring(unsigned char src);
+	std::string to_string(const Date& src);
+	std::wstring to_wstring(const Date& src);
+	std::string to_string(const Datetime& src);
+	std::wstring to_wstring(const Datetime& src);
 #ifdef _UNICODE
-	std::wstring to_tstring(const std::string &src);
-	std::wstring to_tstring(const std::wstring &src);
-	std::wstring to_tstring(const wchar_t* src);
-	std::wstring to_tstring(const char* src);
+#define to_tstring to_wstring
+	//std::wstring to_tstring(const std::string &src);
+	//std::wstring to_tstring(const std::wstring &src);
+	//std::wstring to_tstring(const wchar_t* src);
+	//std::wstring to_tstring(const char* src);
+	//std::wstring to_tstring(const Clob& src);
+	//std::wstring to_tstring(const Blob& src);
+	//std::wstring to_tstring(int src);
 	typedef std::basic_regex<wchar_t> tregex;
 	typedef std::basic_ofstream<wchar_t, std::char_traits<wchar_t> > tofstream;
 #else
-	std::string to_tstring(const std::wstring &src);
-	std::string to_tstring(const std::string &src);
-	std::string to_tstring(const wchar_t* src);
-	std::string to_tstring(const char* src);
+#define to_tstring to_string
+	//std::string to_tstring(const std::wstring &src);
+	//std::string to_tstring(const std::string &src);
+	//std::string to_tstring(const wchar_t* src);
+	//std::string to_tstring(const char* src);
+	//std::string to_tstring(const Clob& src);
+	//std::string to_tstring(const Blob& src);
+	//std::string to_tstring(int src);
 	typedef std::basic_regex<char> tregex;
 	typedef std::basic_ofstream<char, std::char_traits<char> > tofstream;
 #endif // _UNICODE
@@ -423,10 +452,12 @@ namespace sqlite3pp
 	int GetDbErrNo();
 	int GetDbExtErrNo();
 
-	bool dir_exists(const std::string& foldername);
-	bool dir_exists(const std::wstring& foldername);
-	bool file_exists(const std::string &filename);
-	bool file_exists(const std::wstring &filename);
+	bool dir_exists(std::string foldername, bool RepaceEnvVar = false);
+	bool dir_exists(std::wstring foldername, bool RepaceEnvVar = false);
+	bool file_exists(std::string filename, bool RepaceEnvVar = false);
+	bool file_exists(std::wstring filename, bool RepaceEnvVar = false);
+	bool copy_file(std::string Src, std::string Dest, bool OverWriteIfExist = false);
+	bool copy_file(std::wstring Src, std::wstring Dest, bool OverWriteIfExist = false);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -437,6 +468,7 @@ namespace sqlite3pp
 	struct StrOptions
 	{
 		std::string str_type;			// "std::string", "std::wstring", "sqlite3pp::tstring"
+		std::string str_tostr;			// "sqlite3pp::to_string", "sqlite3pp::to_wstring", "sqlite3pp::to_tstring"
 		std::string str_pre;			//  "", "L", "_T("
 		std::string str_post;			//  "", "", ")"
 		std::string str_include;		//  include needed to support str_type. ie:("#include <string>", "#include \"sqlite3pp_ez.h\"", "#include <string>")

@@ -15,6 +15,7 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#include <iostream>
 #include <direct.h>
 #include <cassert>
 #include <sys/types.h> 
@@ -72,41 +73,191 @@ namespace sqlite3pp
 		return src;
 	}
 
-#ifdef _UNICODE
-	std::wstring to_tstring(const std::string &src)
+	// Convertion types
+	std::string to_string(const Clob& src)
 	{
-		return to_wstring(src);
+		return std::string(src->data(), src->data() + src->size());
 	}
-	std::wstring to_tstring(const std::wstring &src)
+
+	std::wstring to_wstring(const Clob& src)
 	{
-		return src;
+		return to_wstring(to_string(src));
 	}
-	std::wstring to_tstring(const wchar_t* src)
+
+	std::string to_string(const Blob& src)
 	{
-		return to_wstring(src);
+		return std::string(src->data(), src->data() + src->size());
 	}
-	std::wstring to_tstring(const char* src)
+
+	std::wstring to_wstring(const Blob& src)
 	{
-		return to_wstring(src);
+		return to_wstring(std::string(src->data(), src->data() + src->size()));
 	}
-#else
-	std::string to_tstring(const std::wstring &src)
+
+	std::string to_string(int src)
 	{
-		return to_string(src);
+		return std::to_string(src);
 	}
-	std::string to_tstring(const std::string &src)
+
+	std::wstring to_wstring(int src)
 	{
-		return src;
-	std::string to_tstring(const wchar_t* src)
+		return to_wstring(std::to_string(src));
+	}
+
+	std::string to_string(long long int src)
 	{
-		return to_string(src);
+		return std::to_string(src);
 	}
-	std::string to_tstring(const char* src)
+
+	std::wstring to_wstring(long long int src)
 	{
-		return to_string(src);
+		return to_wstring(std::to_string(src));
 	}
+
+	std::string to_string(unsigned long long int src)
+	{
+		return std::to_string(src);
 	}
-#endif // _UNICODE
+
+	std::wstring to_wstring(unsigned long long int src)
+	{
+		return to_wstring(sqlite3pp::to_string(src));
+	}
+
+	std::string to_string(short int src)
+	{
+		return std::to_string(src);
+	}
+
+	std::wstring to_wstring(short int src)
+	{
+		return to_wstring(sqlite3pp::to_string(src));
+	}
+
+	std::string to_string(bool src)
+	{
+		return std::to_string((int)src);
+	}
+
+	std::wstring to_wstring(bool src)
+	{
+		return to_wstring(sqlite3pp::to_string(src));
+	}
+
+	std::string to_string(double src)
+	{
+		return std::to_string(src);
+	}
+
+	std::wstring to_wstring(double src)
+	{
+		return to_wstring(sqlite3pp::to_string(src));
+	}
+
+	std::string to_string(unsigned char src)
+	{
+		return std::to_string((int)src);
+	}
+
+	std::wstring to_wstring(unsigned char src)
+	{
+		return to_wstring(sqlite3pp::to_string(src));
+	}
+
+	std::string to_string(const Date& t)
+	{
+		if (t.t > 0)
+		{
+			char buf[256] = { 0 };
+			std::tm tm_struct = { 0 };
+			gmtime_s(&tm_struct, &t.t);
+			strftime(buf, sizeof(buf), "%Y-%m-%db", &tm_struct);
+			return buf;
+		}
+		return "0000-00-00";
+	}
+
+	std::wstring to_wstring(const Date& src)
+	{
+		return to_wstring(sqlite3pp::to_string(src));
+	}
+
+	std::string to_string(const Datetime& t)
+	{
+		if (t.tm_struct.tm_mday)
+		{
+			char buf[256] = { 0 };
+			strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &t.tm_struct);
+			return buf;
+		}
+		return "0000-00-00 00:00:00";
+	}
+
+	std::wstring to_wstring(const Datetime& src)
+	{
+		return to_wstring(sqlite3pp::to_string(src));
+	}
+
+
+//#ifdef _UNICODE
+//	std::wstring to_tstring(const std::string &src)
+//	{
+//		return to_wstring(src);
+//	}
+//	std::wstring to_tstring(const std::wstring &src)
+//	{
+//		return src;
+//	}
+//	std::wstring to_tstring(const wchar_t* src)
+//	{
+//		return to_wstring(src);
+//	}
+//	std::wstring to_tstring(const char* src)
+//	{
+//		return to_wstring(src);
+//	}
+//	std::wstring to_tstring(const Clob& src)
+//	{
+//		return to_wstring(to_string(src));
+//	}
+//	std::wstring to_tstring(const Blob& src)
+//	{
+//		return to_wstring(std::string(src->data(), src->data() + src->size()));
+//	}
+//	std::wstring to_tstring(int src)
+//	{
+//		return to_wstring(std::to_string(src));
+//	}
+//#else
+//	std::string to_tstring(const std::wstring &src)
+//	{
+//		return to_string(src);
+//	}
+//	std::string to_tstring(const std::string &src)
+//	{
+//		return src;
+//	std::string to_tstring(const wchar_t* src)
+//	{
+//		return to_string(src);
+//	}
+//	std::string to_tstring(const char* src)
+//	{
+//		return to_string(src);
+//	}
+//	}
+//	std::string to_tstring(const Clob& src)
+//	{
+//		return std::string(src->data(), src->data() + src->size());
+//	}
+//	std::string to_tstring(const Blob& src)
+//	{
+//		return std::string(src->data(), src->data() + src->size());
+//	}
+//	std::string to_tstring(int src)
+//	{
+//		return std::to_string(src);
+//	}
+//#endif // _UNICODE
 
 	VerbosityLevels sql_base::m_VerbosityLevels = VBLV_ERROR;
 	void sql_base::SetVerbosityLevel(VerbosityLevels v)
@@ -373,30 +524,84 @@ namespace sqlite3pp
 		return sql_base::global_db.extended_error_code();
 	}
 
-	bool dir_exists(const std::string& foldername)
+	bool dir_exists(std::string foldername, bool RepaceEnvVar)
 	{
+		if (RepaceEnvVar)
+			foldername = Get_UpdatedPathCopy(foldername);
 		struct stat st = { 0 };
 		stat(foldername.c_str(), &st);
 		return st.st_mode & S_IFDIR;
 	}
 
-	bool dir_exists(const std::wstring& foldername)
+	bool dir_exists(std::wstring foldername, bool RepaceEnvVar)
 	{
+		if (RepaceEnvVar)
+			foldername = Get_UpdatedPathCopy(foldername);
 		struct _stat st = { 0 };
 		_wstat(foldername.c_str(), &st);
 		return st.st_mode & S_IFDIR;
 	}
 
-	bool file_exists(const std::string &filename)
+	bool file_exists(std::string filename, bool RepaceEnvVar)
 	{
+		if (RepaceEnvVar)
+			filename = Get_UpdatedPathCopy(filename);
 		struct stat st = { 0 };
 		return (stat(filename.c_str(), &st) == 0);
 	}
 
-	bool file_exists(const std::wstring &filename)
+	bool file_exists(std::wstring filename, bool RepaceEnvVar)
 	{
+		if (RepaceEnvVar)
+			filename = Get_UpdatedPathCopy(filename);
 		struct _stat st = { 0 };
 		return (_wstat(filename.c_str(), &st) == 0);
+	}
+
+	bool copy_file(std::wstring Src, std::wstring Dest, bool OverWriteIfExist)
+	{
+		Src = Get_UpdatedPathCopy(Src);
+		Dest = Get_UpdatedPathCopy(Dest);
+		if (file_exists(Dest))
+		{
+			if (OverWriteIfExist)
+			{
+				if (!DeleteFileW(Dest.c_str()))
+					return false;
+			}
+			else
+				return false;
+		}
+
+		bool RetrnVal = false;
+		std::ofstream outfile(Dest.c_str(), std::ios::out | std::ios::binary);
+		if (outfile.is_open())
+		{
+			std::ifstream is(Src.c_str(), std::ios::in | std::ios::binary);
+			if (is.is_open())
+			{
+				is.seekg(0, is.end);
+				const std::streamoff length = is.tellg();
+				is.seekg(0, is.beg);
+				char *buffer = new char[static_cast<size_t>(length) + 1]();
+				if (buffer)
+				{
+					is.read(buffer, length);
+					outfile.write(buffer, length);
+					delete[] buffer;
+					RetrnVal = true;
+				}
+				is.close();
+			}
+			outfile.close();
+		}
+
+		return RetrnVal;
+	}
+
+	bool copy_file(std::string Src, std::string Dest, bool OverWriteIfExist)
+	{
+		return copy_file(to_wstring(Src), to_wstring(Dest), OverWriteIfExist);
 	}
 
 	void replace_all(std::wstring & data, const std::wstring &toSearch, const std::wstring &replaceStr)
@@ -773,10 +978,10 @@ namespace sqlite3pp
   ////////////////////////////////////////////////////////////////////////////////////////////
   // SQLiteClassBuilder Predefines.
 	// Predefined string options
-	const StrOptions SQLiteClassBuilder::strOpt_std_string = { "std::string", "", "", "#include <string>" };
-	const StrOptions SQLiteClassBuilder::strOpt_std_wstring = { "std::wstring", "L", "", "#include <string>" };
-	const StrOptions SQLiteClassBuilder::strOpt_sql_tstring = { "sqlite3pp::tstring", "T_(", ")", "#include \"sqlite3pp_ez.h\"" };
-	const StrOptions SQLiteClassBuilder::strOpt_sql_tstring_T = { "sqlite3pp::tstring", "_T(", ")", "#include \"sqlite3pp_ez.h\"" };
+	const StrOptions SQLiteClassBuilder::strOpt_std_string = { "std::string", "sqlite3pp::to_string", "", "", "#include <string>" };
+	const StrOptions SQLiteClassBuilder::strOpt_std_wstring = { "std::wstring", "sqlite3pp::to_wstring", "L", "", "#include <string>" };
+	const StrOptions SQLiteClassBuilder::strOpt_sql_tstring = { "sqlite3pp::tstring", "sqlite3pp::to_tstring", "T_(", ")", "#include \"sqlite3pp_ez.h\"" };
+	const StrOptions SQLiteClassBuilder::strOpt_sql_tstring_T = { "sqlite3pp::tstring", "sqlite3pp::to_tstring", "_T(", ")", "#include \"sqlite3pp_ez.h\"" };
 	// Predefined MiscOptions for common settings
 	const MiscOptions SQLiteClassBuilder::MiscOpt_max = { ",", false, false, false, false, false, false, false, false, false };
 	const MiscOptions SQLiteClassBuilder::MiscOpt_min = { ",", true, true, true, true, true, false, false, true, true };
@@ -1164,6 +1369,17 @@ namespace sqlite3pp
 			for (auto c : columns_with_comma)
 				myfile << c.second << "\\\"" << c.first << "\\\"";
 			myfile << "\"" << m_options.s.str_post << "; }" << std::endl;
+
+			// Create GetValues member function. Needed for sqlite3pp::Table template class
+			myfile << "\tStrType GetValues() const\n\t{\n\t\tStrType strtype;";
+			std::string commaDel;
+			for (auto c : columns)
+			{
+				myfile << "\n\t\tstrtype +=  " << m_options.s.str_pre << "\"" << commaDel << "'\"" <<  m_options.s.str_post 
+					<< " + " << m_options.s.str_tostr << "( " << c.first << ") + " << m_options.s.str_pre << "\"'\""  << m_options.s.str_post << ";";
+				commaDel = ",";
+			}
+			myfile << "\n\t\treturn strtype;\n\t}" << std::endl;
 
 			// Create getStreamData member function. Needed for sqlite3pp::Table template class
 			myfile << "\ttemplate<class T> void getStreamData( T q ) { q.getter() ";
