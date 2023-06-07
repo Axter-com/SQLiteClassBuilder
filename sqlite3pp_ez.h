@@ -49,6 +49,8 @@ namespace sqlite3pp
 		AIO_Throw
 	};
 
+	static std::string GetSqlite3EzVer() { return "1.0.1"; }
+
 	class sql_base
 	{
 	public:
