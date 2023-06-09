@@ -111,8 +111,10 @@ int main(int argc, char* argv[])
 		exit(-1);
 	}
 
+	bool PathAlreadyExisted = true;
 	std::string TargetPath = arg_result["folder"].as<std::string>();
 	TargetPath = Common::rtrim(TargetPath, "\\");
+	bool SqlMasterHeader_AlreadyExisted = sqlite3pp::file_exists(TargetPath + "\\sql_Master_Header.h");
 	if (TargetPath.size())
 	{
 		V_COUT(DETAIL, "Using destination path '" << TargetPath << "'.");
@@ -129,17 +131,18 @@ int main(int argc, char* argv[])
 		{
 			V_COUT(INFO, "Creating target path '" << TargetPath << "'.");
 			_mkdir(TargetPath.c_str());
+			PathAlreadyExisted = false;
 		}
 	}
 
 	std::string FileExt = arg_result["fileext"].as<std::string>().size() ? arg_result["fileext"].as<std::string>() : "h";
 	V_COUT(DETAIL, "Files created will use file extension '" << FileExt << "'.");
 	
-	if (!arg_result["dhead"].as<bool>())
+	if (!arg_result["dhead"].as<bool>() && PathAlreadyExisted && SqlMasterHeader_AlreadyExisted)
 	{
-		V_COUT(INFO, "Deleting exsiting headers.");
+		V_COUT(INFO, "Deleting existing headers.");
 		std::string Command = "del /F /Q " + TargetPath + "\\" + arg_result["prefix"].as<std::string>() + "*" + arg_result["postfix"].as<std::string>() + "." + FileExt;
-		V_COUT(DEBUG, "Deleting exsiting headers. by using command:" << Command);
+		V_COUT(DEBUG, "Deleting existing headers. by using command:" << Command);
 		system(Command.c_str()); // ToDo: Create a cleaner method for this.
 	}
 
