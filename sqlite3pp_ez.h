@@ -1,18 +1,17 @@
 /*	sqlite3pp_ez.h
 	GNU General Public License
 	
-	Copyright (C) 2021 David Maisonave (www.axter.com)
+	Copyright (C) 2025 David Maisonave (www.axter.com)
 	The sqlite3pp_ez source code is free software. You can redistribute it and/or modify it under the terms of the GNU General Public License.
 	This source code is distributed in the hope that it will be useful,	but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
 	# Summary
 	This repository is a fork of sqlite3pp, and it includes additional code to add UNICODE support, a template Table class and a SQLite class builder.
-	The sqlite3pp::Table class along with the sqlite3pp::SQLiteClassBuilder class allows C++ developers to use type safe variables assocaited with the table column types.
+	The sqlite3pp::Table class along with the sqlite3pp::SQLiteClassBuilder class allows C++ developers to use type safe variables associated with the table column types.
 
 	This package contains all the files required to use SQLite3, SQLite3pp, and SQLite3pp_EZ.Only minor modifications have been made to SQLite3 C code and SQLite3pp where needed for UNICODE support.Then bulk of the sqlite3pp_EZ implementation is in sqlite3pp_EZ.h and sqlite3pp_EZ.cpp.
 
 	For usage examples see  https://github.com/David-Maisonave/sqlite3pp_EZ
-							or sqlite3pp_ez.h
 */
 
 #ifndef SQLITE3PP_EZ_H
@@ -49,7 +48,7 @@ namespace sqlite3pp
 		AIO_Throw
 	};
 
-	static std::string GetSqlite3EzVer() { return "1.0.7"; }
+	static std::string GetSqlite3EzVer() { return "1.0.8"; }
 
 	class sql_base
 	{
@@ -79,15 +78,15 @@ namespace sqlite3pp
 		using Nvarchar = std::wstring;
 		using Character = std::string;
 		using Varchar = std::string;
+		using Text = sqlite3pp::TEXT;
 
-
-		friend database& setGlobalDB( const std::string& db_filename, ActionIfDatabaseOpen actionifopen);
-		friend database& setGlobalDB( const std::wstring& db_filename, ActionIfDatabaseOpen actionifopen);
+		friend database& setGlobalDB(const std::wstring& db_filename, ActionIfDatabaseOpen actionifopen, bool disconnectExistingConnection);
 		friend database& getGlobalDB();
 		friend int Execute( const std::string& sql );
 		friend int Execute( const std::wstring& sql );
 		friend int Connect(const char* db_filename, int flags, const char* vfs );
 		friend int Connect(const wchar_t* db_filename, int flags, const wchar_t* vfs );
+		friend int Disconnect();
 		friend int Attach( const char* db_filename, const char* name );
 		friend int Attach( const  wchar_t* db_filename, const  wchar_t* name );
 		friend int Detach();
@@ -115,7 +114,6 @@ namespace sqlite3pp
 		static void set(tstring db_filename);
 		static void unset();
 	};
-	
 
 	std::string to_string(const std::wstring &src);
 	std::string to_string(const std::string &src);// For template usage
@@ -150,14 +148,14 @@ namespace sqlite3pp
 #endif // _UNICODE
 
 	typedef std::match_results<tstring::const_iterator> tsmatch;
-	std::string GetUpdatedSrcPath(std::string &src, int EnvVarToFetch = 3, const std::string VarNamePrefix = "%", const std::string VarNamePostfix = "%");// EnvVarToFetch BIT Settings: 1=Get User Var, 2=Get System Paths, 4=Get Misc Var
-	std::string Get_UpdatedPathCopy(std::string src, int EnvVarToFetch = 3, const std::string VarNamePrefix = "%", const std::string VarNamePostfix = "%");
-	std::wstring GetUpdatedSrcPath(std::wstring &src, int EnvVarToFetch = 3, const std::string VarNamePrefix = "%", const std::string VarNamePostfix = "%");
-	std::wstring Get_UpdatedPathCopy(std::wstring src, int EnvVarToFetch = 3, const std::string VarNamePrefix = "%", const std::string VarNamePostfix = "%");
+	std::string GetUpdatedSrcPath(std::string &src, int EnvVarToFetch = 3, const std::string VarNamePrefix = "%", const std::string VarNameSuffix = "%");// EnvVarToFetch BIT Settings: 1=Get User Var, 2=Get System Paths, 4=Get Misc Var
+	std::string Get_UpdatedPathCopy(std::string src, int EnvVarToFetch = 3, const std::string VarNamePrefix = "%", const std::string VarNameSuffix = "%");
+	std::wstring GetUpdatedSrcPath(std::wstring &src, int EnvVarToFetch = 3, const std::string VarNamePrefix = "%", const std::string VarNameSuffix = "%");
+	std::wstring Get_UpdatedPathCopy(std::wstring src, int EnvVarToFetch = 3, const std::string VarNamePrefix = "%", const std::string VarNameSuffix = "%");
 
 
 	////////////////////////////////////////////////////////////////////////////////////////////
-	// ostream_w and ostream_a are used to help out stream different charater types.
+	// ostream_w and ostream_a are used to help out stream different character types.
 	struct ostream_w
 	{
 		std::wostream &os;
@@ -194,7 +192,7 @@ namespace sqlite3pp
 		TableArgEnv(const T_STR& Str = T_STR()) :TableArg<TypeName, T_STR>(Get_UpdatedPathCopy(Str)) {}
 	};
 
-	// Constructor aruments
+	// Constructor arguments
 	using PreExecuteArg = TableArg<sql_base::TableArg_PreExecuteArg>;  // Use this argument to perform a SQL Execute before querying the table/view
 	using WhereClauseArg = TableArg<sql_base::TableArg_WhereClauseArg>; // Use this argument to add a where clause when querying the table/view
 	using DbFileNameArg = TableArgEnv<sql_base::TableArg_DbFileNameArg>; // Use this argument to open the specified database file
@@ -243,7 +241,8 @@ namespace sqlite3pp
 		Table(sqlite3pp::database &db, DbFileNameArg dbfilenamearg, PreExecuteArg preexecutearg, WhereClauseArg whereclausearg = WhereClauseArg()) :m_PreExecute(preexecutearg), m_WhereClause(whereclausearg), m_DbFileName(dbfilenamearg), m_db(db), m_InitQuery(CreateSelectQueryStr(whereclausearg, T_STR())), m_TableName(T::getTableName()), m_ColumnNames(T::getColumnNames()), m_ColumnCount(T::getColumnCount()) { ExecuteQuery(m_db, m_InitQuery, preexecutearg, dbfilenamearg); }
 
 		// Same as above set, but this set uses the single global database instance, and so db does not need to be pass to the constructor. These constructors automatically populate the object using data from the global database instance.
-		Table(WhereClauseArg whereclausearg = WhereClauseArg()	, PreExecuteArg preexecutearg = PreExecuteArg(), DbFileNameArg dbfilenamearg = DbFileNameArg()):m_PreExecute(preexecutearg), m_WhereClause(whereclausearg), m_DbFileName(dbfilenamearg), m_db( global_db ), m_InitQuery(CreateSelectQueryStr(whereclausearg, T_STR())), m_TableName(T::getTableName()), m_ColumnNames(T::getColumnNames()), m_ColumnCount(T::getColumnCount()) { ExecuteQuery( m_db, m_InitQuery, preexecutearg, dbfilenamearg); }
+		Table(WhereClauseArg whereclausearg = WhereClauseArg()	, PreExecuteArg preexecutearg = PreExecuteArg(), DbFileNameArg dbfilenamearg = DbFileNameArg()) // **Default Constructor**
+			:m_PreExecute(preexecutearg), m_WhereClause(whereclausearg), m_DbFileName(dbfilenamearg), m_db( global_db ), m_InitQuery(CreateSelectQueryStr(whereclausearg, T_STR())), m_TableName(T::getTableName()), m_ColumnNames(T::getColumnNames()), m_ColumnCount(T::getColumnCount()) { ExecuteQuery( m_db, m_InitQuery, preexecutearg, dbfilenamearg); }
 		Table(PreExecuteArg preexecutearg						, WhereClauseArg whereclausearg = WhereClauseArg(), DbFileNameArg dbfilenamearg = DbFileNameArg()) :m_PreExecute(preexecutearg), m_WhereClause(whereclausearg), m_DbFileName(dbfilenamearg), m_db(global_db), m_InitQuery(CreateSelectQueryStr(whereclausearg, T_STR())), m_TableName(T::getTableName()), m_ColumnNames(T::getColumnNames()), m_ColumnCount(T::getColumnCount()) { ExecuteQuery(  m_db, m_InitQuery, preexecutearg, dbfilenamearg); }
 		Table(DbFileNameArg dbfilenamearg						, WhereClauseArg whereclausearg = WhereClauseArg(), PreExecuteArg preexecutearg = PreExecuteArg()) :m_PreExecute(preexecutearg), m_WhereClause(whereclausearg), m_DbFileName(dbfilenamearg), m_db(global_db), m_InitQuery(CreateSelectQueryStr(whereclausearg, T_STR())), m_TableName(T::getTableName()), m_ColumnNames(T::getColumnNames()), m_ColumnCount(T::getColumnCount()) { ExecuteQuery( m_db, m_InitQuery, preexecutearg, dbfilenamearg); }
 		Table(DbFileNameArg dbfilenamearg						, PreExecuteArg preexecutearg, WhereClauseArg whereclausearg = WhereClauseArg()) :m_PreExecute(preexecutearg), m_WhereClause(whereclausearg), m_DbFileName(dbfilenamearg), m_db(global_db), m_InitQuery(CreateSelectQueryStr(whereclausearg, T_STR())), m_TableName(T::getTableName()), m_ColumnNames(T::getColumnNames()), m_ColumnCount(T::getColumnCount()) { ExecuteQuery( m_db, m_InitQuery, preexecutearg, dbfilenamearg); }
@@ -269,7 +268,7 @@ namespace sqlite3pp
 		{
 			for (auto i : tvect)
 			{
-				DataType datatype;
+				DataType datatype = { 0 };
 				datatype.setData(i);
 				m_VectType.push_back(datatype);
 			}
@@ -298,8 +297,8 @@ namespace sqlite3pp
 		void Insert(const DataType &d) { push_back(d); Insert(ValueArg(d.GetValues()), T_STR()); }
 		void UpdateDb(const DataType &d) { UpdateDb(ValueArg(d.GetValues()), T_STR()); }
 		void DeleteAll(){ DeleteAll(T_STR()); }
-		std::string CreateSelectQueryStr(WhereClauseArg whereclausearg, std::string) { return "SELECT " + T::getSelecColumnNames() + " FROM \"" + T::getTableName() + "\" " + to_string(whereclausearg.get_Str().c_str()); }
-		std::wstring CreateSelectQueryStr(WhereClauseArg whereclausearg, std::wstring) { return L"SELECT " + T::getSelecColumnNames() + L" FROM \"" + T::getTableName() + L"\" " + to_wstring(whereclausearg.get_Str().c_str()); }
+		std::string CreateSelectQueryStr(WhereClauseArg whereclausearg, std::string) { return "SELECT " + T::getSelectColumnNames() + " FROM '" + T::getTableName() + "' " + to_string(whereclausearg.get_Str().c_str()); }
+		std::wstring CreateSelectQueryStr(WhereClauseArg whereclausearg, std::wstring) { return L"SELECT " + T::getSelectColumnNames() + L" FROM '" + T::getTableName() + L"' " + to_wstring(whereclausearg.get_Str().c_str()); }
 		void ReQuery()
 		{
 			m_VectType.clear();
@@ -329,7 +328,7 @@ namespace sqlite3pp
 		{
 			for ( auto q : qry )
 			{
-				DataType temp_var;
+				DataType temp_var = {};
 				temp_var.getStreamData( q );
 				m_VectType.push_back( temp_var );
 			}
@@ -417,14 +416,19 @@ namespace sqlite3pp
 	std::ostream& operator<<(std::ostream& os, const sqlite3pp::Datetime& t);
 	std::wostream& operator<<(std::wostream& os, const sqlite3pp::Date& t);
 	std::ostream& operator<<(std::ostream& os, const sqlite3pp::Date& t);
+	std::wostream& operator<<(std::wostream& os, const sqlite3pp::TEXT& obj);
+	std::ostream& operator<<(std::ostream& os, const sqlite3pp::TEXT& obj);
 
-	database& setGlobalDB(const std::string& db_filename, ActionIfDatabaseOpen actionifopen = AIO_SkipIfSameFile);
-	database& setGlobalDB(const std::wstring& db_filename, ActionIfDatabaseOpen actionifopen = AIO_SkipIfSameFile);
+	database& setGlobalDB(const std::string& db_filename, ActionIfDatabaseOpen actionifopen = AIO_SkipIfSameFile, bool disconnectExistingConnection = false);
+	database& setGlobalDB(const std::wstring& db_filename, ActionIfDatabaseOpen actionifopen = AIO_SkipIfSameFile, bool disconnectExistingConnection = false);
+	database& setGlobalDB(const std::string& db_filename,  bool disconnectExistingConnection);
+	database& setGlobalDB(const std::wstring& db_filename, bool disconnectExistingConnection);
 	database& getGlobalDB();
 	int Execute( const std::string& sql );
 	int Execute( const std::wstring& sql );
 	int Connect(const char* db_filename, int flags, const char* vfs = nullptr );
 	int Connect(const wchar_t* db_filename, int flags, const wchar_t* vfs = nullptr );
+	int Disconnect();
 	int Attach(const char* db_filename, const char* name );
 	int Attach(const wchar_t* db_filename, const  wchar_t* name );
 	int Detach();
@@ -460,22 +464,24 @@ namespace sqlite3pp
 	{
 		std::string dest_folder;		// Default: "SQL\\"				Destination folder where headers are created. If drive letter is not included in the path, folder is treated as relative path.
 		std::string header_prefix;		// Default: "sql_"				Desired prefix for headers created.
-		std::string header_postfix;		// Default: ""					Desired postfix for header created.
+		std::string header_suffix;		// Default: ""					Desired suffix for header created.
 		std::string file_type;			// Default: "h"					Other options (hpp, hxx, class)
 		std::string header_include;		// Default: "..\sqlite3pp_ez.h"	Other options (SQLite3pp_ez.h)
 	};
 	struct MiscOptions
 	{
-		std::string delimiter;			// Only used with opereator<<, and can be and desired string value to mark seperation between field output. ie:  ",", ", ", " ", ";", ""
-		bool is_public_var_members;		// True to make data members public, and false to make data members protected.
-		bool exclude_get_functions;		// If true, no get function. If false, a get function is created for each data member variable.
-		bool exclude_set_functions;		// If true, no set function. If false, a set function is created for each data member variable.
-		bool exclude_ostream_operator;	// If true, no operator<<. If false, a creates friend declaration, getDelimiter function, and global operator<< for the class
-		bool exclude_comments;			// If true, excludes comments and additional spaces.
-		bool exclude_table_interface;	// If true, excludes sqlite3pp::Table interface functions ( getTableName, getColumnNames, and getStreamData), and excludes Miscellaneous function(s).
-		bool use_basic_types_only;		// If true, only int, double, std::string, and std::wstring are used
-		bool exclude_main_hdr_example;	// If true, excludes example code added to sql_Master_Header.h
-		bool exclude_comment_out_exampl;// If true, does NOT comment out example code
+		std::string delimiter;			// Only used with operator<<, and can be and desired string value to mark separation between field output. ie:  ",", ", ", " ", ";", ""
+		bool is_public_var_members = false;		// True to make data members public, and false to make data members protected.
+		bool exclude_get_functions = false;		// If true, no get function. If false, a get function is created for each data member variable.
+		bool exclude_set_functions = false;		// If true, no set function. If false, a set function is created for each data member variable.
+		bool exclude_ostream_operator = false;	// If true, no operator<<. If false, a creates friend declaration, getDelimiter function, and global operator<< for the class
+		bool exclude_comments = false;			// If true, excludes comments and additional spaces.
+		bool exclude_table_interface = false;	// If true, excludes sqlite3pp::Table interface functions ( getTableName, getColumnNames, and getStreamData), and excludes Miscellaneous function(s).
+		bool use_basic_types_only = false;		// If true, only int, double, std::string, and std::wstring are used
+		bool exclude_main_hdr_example = false;	// If true, excludes example code added to sql_Master_Header.h
+		bool exclude_comment_out_example = false;// If true, does NOT comment out example code
+		bool initialize_member_variables = true;// If true, initialize class member variables in header
+		bool initialize_str_member_var = false;	// If true, initialize class member string variables in header
 	}; // Create a custom defined TblClassOptions variable, or used one of the SQLiteClassBuilder predefined types, or use the default type which is automatically set by the SQLiteClassBuilder constructor
 
 	struct TblClassOptions
@@ -494,31 +500,42 @@ namespace sqlite3pp
 		std::vector<std::string> m_HeadersCreated;
 		std::vector<std::string> m_ClassNames;
 		std::string GetType(const std::string &tblVw, const std::string &colName, const char* str);
-		std::string GetType_s(const std::string &tblVw, const std::string &colName, const char* str);
+		std::string GetType_s(const std::string &tblVw, const std::string &colName, const char* str) const;
 		TblClassOptions Init(const StrOptions & stroptions, const MiscOptions & miscoptions, const HeaderOpt & headeropt);
 		void Init(
 			  const std::string& TableOrView_name
 			, const std::string &AndWhereClause
 		);
 		bool ProcessClassCreation(const std::string& ClassName, std::string QueryStr = "");
-		bool CreateHeaderPrefix(const std::string& TableName, std::ofstream &myfile, std::string& ClassName, std::string& HeaderUpper, std::string FirstColumnName = "", std::string LastColumnName = "", bool AppendToVect = true);
+		static const std::vector<std::pair<std::string, std::string> > columns_dummy;
+		bool CreateHeaderPrefix(const std::string& TableName, std::ofstream &myfile, 
+			std::string& ClassName, std::string& HeaderUpper, std::string FirstColumnName = "", std::string LastColumnName = "", 
+			bool AppendToVect = true, const std::vector<std::pair<std::string, std::string> >& columns = columns_dummy);
 	public:
 		// This constructor is best to use when creating a header for all tables in the constructor.  (Headers can also be created by calling CreateHeader or CreateAllHeaders)
 		SQLiteClassBuilder(const std::string& Db_filename						
 			, const StrOptions &stroptions										// StrOptions is used to define the default string type.  Can be set to a custom define StrOptions, or to one of the predefined common options (strOpt_std_string, strOpt_std_wstring, strOpt_std_tstring, strOpt_sql_tstring)
 			, const std::string &AndWhereClause = ""							// Used when creating multiple tables.  Can specify which tables/views to include via where clause
 			, const MiscOptions &miscoptions = MiscOpt_max						// MiscOptions is used to define miscellaneous options.  Can be set to a custom define MiscOptions, or to one of the predefined common options (MiscOpt_max, MiscOpt_min, MiscOpt_var)
-			, const HeaderOpt &headeropt = HeadersCreatedSqlDir						// HeaderOpt is used to define the naming convention to use when creating the header file(s).
+			, const HeaderOpt &headeropt = HeadersCreatedSqlDir					// HeaderOpt is used to define the naming convention to use when creating the header file(s).
 			, const std::string& TableOrView_name = CreateHeaderForAllTables	// If equal to "%_CreateHeaderForAllTables_%", a header for each table and view is created. If equal to table or view name, a single header for associated table or view is created. If empty or equal to "#NILL#", the constructor does not create any headers.
 		) :m_db(Db_filename.c_str()), m_options( Init(stroptions, miscoptions, headeropt) ), m_options_org(m_options), m_AppendTableToHeader(false){Init(TableOrView_name, AndWhereClause);}
 
-		// This constructor is best when crating a single header or no headers at all in the contructor. (Headers can also be created by calling CreateHeader or CreateAllHeaders)
+		// This constructor is best when crating a single header or no headers at all in the constructor. (Headers can also be created by calling CreateHeader or CreateAllHeaders)
 		SQLiteClassBuilder(const std::string& Db_filename						// Only Required Field
 			, const std::string& TableOrView_name = ""							// If equal to "%_CreateHeaderForAllTables_%", a header for each table and view is created. If equal to table or view name, a single header for associated table or view is created. If empty or equal to "#NILL#", the constructor does not create any headers.
 			, const std::string &AndWhereClause = ""							// Used when creating multiple tables.  Can specify which tables/views to include via where clause
 			, const StrOptions &stroptions = strOpt_std_string					// StrOptions is used to define the default string type.  Can be set to a custom define StrOptions, or to one of the predefined common options (strOpt_std_string, strOpt_std_wstring, strOpt_std_tstring, strOpt_sql_tstring)
 			, const MiscOptions &miscoptions = MiscOpt_max						// MiscOptions is used to define miscellaneous options.  Can be set to a custom define MiscOptions, or to one of the predefined common options (MiscOpt_max, MiscOpt_min, MiscOpt_var)
 			, const HeaderOpt &headeropt = HeadersCreatedSqlDir						// HeaderOpt is used to define the naming convention to use when creating the header file(s).
+		) :m_db(Db_filename.c_str()), m_options( Init(stroptions, miscoptions, headeropt) ), m_options_org(m_options), m_AppendTableToHeader(false){Init(TableOrView_name, AndWhereClause);}
+
+		SQLiteClassBuilder(const std::string& Db_filename						
+			, const StrOptions &stroptions										// StrOptions is used to define the default string type.  Can be set to a custom define StrOptions, or to one of the predefined common options (strOpt_std_string, strOpt_std_wstring, strOpt_std_tstring, strOpt_sql_tstring)
+			, const HeaderOpt &headeropt										// HeaderOpt is used to define the naming convention to use when creating the header file(s).
+			, const MiscOptions &miscoptions = MiscOpt_max						// MiscOptions is used to define miscellaneous options.  Can be set to a custom define MiscOptions, or to one of the predefined common options (MiscOpt_max, MiscOpt_min, MiscOpt_var)
+			, const std::string& TableOrView_name = CreateHeaderForAllTables	// If equal to "%_CreateHeaderForAllTables_%", a header for each table and view is created. If equal to table or view name, a single header for associated table or view is created. If empty or equal to "#NILL#", the constructor does not create any headers.
+			, const std::string &AndWhereClause = ""							// Used when creating multiple tables.  Can specify which tables/views to include via where clause
 		) :m_db(Db_filename.c_str()), m_options( Init(stroptions, miscoptions, headeropt) ), m_options_org(m_options), m_AppendTableToHeader(false){Init(TableOrView_name, AndWhereClause);}
 
 		~SQLiteClassBuilder();
@@ -529,6 +546,7 @@ namespace sqlite3pp
 		const std::vector<std::string>& GetHeadersCreated() const { return m_HeadersCreated; }
 		const std::vector<std::string>& GetClassNames() const { return m_ClassNames; }
 		const std::string& GetDestFolder() const { return m_options.h.dest_folder; }
+		std::string InitializeValue(std::string TypeName) const;
 
 		// Predefined string options
 		static const StrOptions strOpt_std_string ;		// TEXT type defaults to std::string
@@ -541,7 +559,7 @@ namespace sqlite3pp
 		static const MiscOptions MiscOpt_var;	// *NOT* compatible with sqlite3pp:Table. It creates a class with data members only, and it's an option to be used for other interfaces.
 		// Default settings for HeaderOpt
 		static const HeaderOpt HeadersCreatedSqlDir; // Creates headers in sub folder called SQL.
-		static const HeaderOpt HeadersCreadedBaseDir; // Creates headers in the base folder.
+		static const HeaderOpt HeadersCreatedBaseDir; // Creates headers in the base folder.
 
 		static const char *Nill; // = "#NILL#"
 		static const char *CreateHeaderForAllTables; // = "%_CreateHeaderForAllTables_%"

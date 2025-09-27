@@ -70,7 +70,7 @@ int main(int argc, char* argv[])
 		//HeaderOpt
 		("f,folder", "Distination folder. Path where headers are created.", cxxopts::value<std::string>()->default_value("SQL"))
 		("a,prefix", "Specify a desired prefix for created headers. Default: \"sql_\".", cxxopts::value<std::string>()->default_value("sql_"))
-		("z,postfix", "Optionally specify a desired postfix for created headers. Default: empty.", cxxopts::value<std::string>()->default_value(""))
+		("z,suffix", "Optionally specify a desired suffix for created headers. Default: empty.", cxxopts::value<std::string>()->default_value(""))
 		("y,fileext", "File type to create (h, hpp, class, hxx). Note: If empty, default type is used. Default: \"h\".", cxxopts::value<std::string>()->default_value("h"))
 		("i,include", "#include to add to all headers. Note: If empty, no additional include is added. Default: \"..\\sqlite3pp_ez.h\".", cxxopts::value<std::string>()->default_value("..\\sqlite3pp_ez.h"))
 		("r,rmdir", "Remove destination directory before creating headers", cxxopts::value<bool>()->default_value("false"))
@@ -141,7 +141,7 @@ int main(int argc, char* argv[])
 	if (!arg_result["dhead"].as<bool>() && PathAlreadyExisted && SqlMasterHeader_AlreadyExisted)
 	{
 		V_COUT(INFO, "Deleting existing headers.");
-		std::string Command = "del /F /Q " + TargetPath + "\\" + arg_result["prefix"].as<std::string>() + "*" + arg_result["postfix"].as<std::string>() + "." + FileExt;
+		std::string Command = "del /F /Q " + TargetPath + "\\" + arg_result["prefix"].as<std::string>() + "*" + arg_result["suffix"].as<std::string>() + "." + FileExt;
 		V_COUT(DEBUG, "Deleting existing headers. by using command:" << Command);
 		system(Command.c_str()); // ToDo: Create a cleaner method for this.
 	}
@@ -179,13 +179,13 @@ int main(int argc, char* argv[])
 	my_MiscOptions.exclude_table_interface = arg_result["xinterf"].as<bool>();
 	my_MiscOptions.use_basic_types_only = arg_result["basic_t"].as<bool>();
 	my_MiscOptions.exclude_main_hdr_example = arg_result["xvalid"].as<bool>();
-	my_MiscOptions.exclude_comment_out_exampl = arg_result["cvalid"].as<bool>();
+	my_MiscOptions.exclude_comment_out_example = arg_result["cvalid"].as<bool>();
 
 	//HeaderOpt
 	sqlite3pp::HeaderOpt	my_HeaderOpt	= sqlite3pp::SqlBld::HeadersCreatedSqlDir;
 	my_HeaderOpt.dest_folder = TargetPath + "\\";
 	my_HeaderOpt.file_type = FileExt;
-	my_HeaderOpt.header_postfix = arg_result["postfix"].as<std::string>();
+	my_HeaderOpt.header_suffix = arg_result["suffix"].as<std::string>();
 	my_HeaderOpt.header_prefix = arg_result["prefix"].as<std::string>();
 	my_HeaderOpt.header_include = arg_result["include"].as<std::string>();
 
