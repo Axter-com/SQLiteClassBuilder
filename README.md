@@ -1,6 +1,11 @@
 # SQLiteClassBuilder
 A command line tool for creating type safe SQL classes. The tool uses the database schema to create a class for each table and view. It has many command line options to allow developers to customize the class creation.
 Each class is created in it's own header (*.h).  A master header (sql_Master_Header.h) is created which includes all the headers.
+## Content
+- [Usage Example](#usage-example)
+- [SQLite3pp_EZ containers](#sqlite3pp_ez-containers)
+- [See also](#See-also)
+- [ToDo](#ToDo)
 
 ## Usage Example:
 ````
@@ -24,14 +29,12 @@ for (auto row : my_tbl)
 
 ````
 
-
 Example#2
 ````
 sqlite3pp::TableOStream<sql_table_FileExt> tbl(DbFileNameArg("mydatabase.db"));
 std::cout << tbl; // Send data to screen with the changed delimiter
 
 ````
-
 
 Example#3
 ````
@@ -40,4 +43,15 @@ std::ofstream ofs ("data.csv", std::ofstream::out); // Open a file
 ofs << tbl; // Write data to the csv file
 
 ````
+
+# See also
+* https://github.com/Axter-com/sqlite3pp_EZ
+* http://www.sqlite.org/
+* https://github.com/iwongu/sqlite3pp
+
+# ToDo
+- Add logic to create classes/structs in multiple programming languages.
+- Create a solution in VS2019, VS2022, and VS2026
+
+
 
