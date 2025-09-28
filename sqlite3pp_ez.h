@@ -11,7 +11,9 @@
 
 	This package contains all the files required to use SQLite3, SQLite3pp, and SQLite3pp_EZ.Only minor modifications have been made to SQLite3 C code and SQLite3pp where needed for UNICODE support.Then bulk of the sqlite3pp_EZ implementation is in sqlite3pp_EZ.h and sqlite3pp_EZ.cpp.
 
-	For usage examples see  https://github.com/David-Maisonave/sqlite3pp_EZ
+	For usage examples see the following links:
+		https://github.com/David-Maisonave/sqlite3pp_EZ
+		https://github.com/Axter-com/SQLiteClassBuilder
 */
 
 #ifndef SQLITE3PP_EZ_H
