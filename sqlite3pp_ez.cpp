@@ -7,6 +7,8 @@
 
 	For usage examples see  https://github.com/David-Maisonave/sqlite3pp_EZ
 */
+// Note: *** Requires ISO C++17 Standard (/std:c++17) ***
+
 #include <windows.h>
 #include <stringapiset.h>
 
@@ -20,6 +22,7 @@ SQLITE_EXTENSION_INIT3
 #include <vector>
 #include <string>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <direct.h>
 #include <cassert>
@@ -995,8 +998,8 @@ namespace sqlite3pp
 	const MiscOptions SQLiteClassBuilder::MiscOpt_min = { ",", true, true, true, true, true, false, false, true, true };
 	const MiscOptions SQLiteClassBuilder::MiscOpt_var = { ",", true, true, true, true, true, true, false, true, true };
 	// Default settings for HeaderOpt
-	const HeaderOpt SQLiteClassBuilder::HeadersCreatedSqlDir = { "SQL\\", "sql_", "", "hpp", "..\\sqlite3pp_ez.h" };
-	const HeaderOpt SQLiteClassBuilder::HeadersCreatedBaseDir = { "", "sql_", "", "hpp", "sqlite3pp_ez.h" };
+	const HeaderOpt SQLiteClassBuilder::HeadersCreatedSqlDir = { "SQL\\", "", "", "hpp", "..\\sqlite3pp_EZ\\sqlite3pp_ez.h" };
+	const HeaderOpt SQLiteClassBuilder::HeadersCreatedBaseDir = { "", "", "", "hpp", "sqlite3pp_ez.h" };
 
 	const char *SQLiteClassBuilder::Nill = "#NILL#";
 	const char *SQLiteClassBuilder::CreateHeaderForAllTables = "%_CreateHeaderForAllTables_%";
@@ -1129,6 +1132,13 @@ namespace sqlite3pp
 
 	void SQLiteClassBuilder::Init(const std::string & TableOrView_name, const std::string & AndWhereClause)
 	{
+		if (m_options.h.header_prefix.empty())
+		{
+			std::filesystem::path fullPath = m_db_filename;
+			std::string filename = fullPath.filename().string();
+			replace_all(filename, ".", "_");
+			m_options.h.header_prefix = "SQL_" + filename + "_";
+		}
 		if (m_options.h.dest_folder.size())
 		{
 			if (m_options.h.dest_folder[m_options.h.dest_folder.size() - 1] == '/')
