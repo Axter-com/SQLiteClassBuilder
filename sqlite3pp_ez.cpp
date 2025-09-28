@@ -7,7 +7,6 @@
 
 	For usage examples see  https://github.com/David-Maisonave/sqlite3pp_EZ
 */
-// Note: *** Requires ISO C++17 Standard (/std:c++17) ***
 
 #include <windows.h>
 #include <stringapiset.h>
@@ -22,7 +21,6 @@ SQLITE_EXTENSION_INIT3
 #include <vector>
 #include <string>
 #include <fstream>
-#include <filesystem>
 #include <iostream>
 #include <direct.h>
 #include <cassert>
@@ -177,6 +175,14 @@ namespace sqlite3pp
 		if (ftyp == INVALID_FILE_ATTRIBUTES)
 			return false; // Directory does not exist or an error occurred
 		return (ftyp & FILE_ATTRIBUTE_DIRECTORY) != 0; // Check if it's a directory
+	}
+
+	std::string getFileName(const std::string& fullPath) {
+		size_t lastSlash = fullPath.find_last_of("/\\");
+		if (lastSlash == std::string::npos) {
+			return fullPath; // No path separator found, the whole string is the filename
+		}
+		return fullPath.substr(lastSlash + 1);
 	}
 
 	static bool isValidDate(const Datetime& t)
@@ -1134,8 +1140,7 @@ namespace sqlite3pp
 	{
 		if (m_options.h.header_prefix.empty())
 		{
-			std::filesystem::path fullPath = m_db_filename;
-			std::string filename = fullPath.filename().string();
+			std::string filename = getFileName(m_db_filename);
 			replace_all(filename, ".", "_");
 			m_options.h.header_prefix = "SQL_" + filename + "_";
 		}
