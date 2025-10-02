@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="CommonFunction.cpp" />
+    <ClCompile Include="SqlClassBuilder.cpp" />
+    <ClCompile Include="sqlite3.c" />
+    <ClCompile Include="sqlite3pp.cpp" />
+    <ClCompile Include="sqlite3pp_ez.cpp" />
+    <ClCompile Include="SQLiteClassBuilder.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CommonFunctions.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="SqlClassBuilder.h" />
+    <ClInclude Include="sqlite3.h" />
+    <ClInclude Include="sqlite3pp.h" />
+    <ClInclude Include="sqlite3pp_ez.h" />
+    <ClInclude Include="cxxopts.hpp" />
+    <ClInclude Include="SQL_ProgamLanguageDetails_db__Master_Header.hpp" />
+    <ClInclude Include="SQL_ProgamLanguageDetails_db_table_ProgramLanguageSettings.hpp" />
+    <ClInclude Include="SQL_ProgamLanguageDetails_db_table_ProgramLanguageSpecialSettings.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="ProgramLanguageTemplates">
+      <UniqueIdentifier>{8d654259-ba92-4088-854f-192f9bc53b85}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ProgramLanguageTemplates\CPP_Template.txt">
+      <Filter>ProgramLanguageTemplates</Filter>
+    </Text>
+  </ItemGroup>
+</Project>

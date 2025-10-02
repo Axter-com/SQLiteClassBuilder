@@ -150,7 +150,13 @@ namespace sqlite3pp
 		return to_wstring(sqlite3pp::to_string(src));
 	}
 
-	static std::string str_toupper(std::string s)
+	std::string str_tolower(std::string s)
+	{
+		std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
+		return s;
+	}
+
+	std::string str_toupper(std::string s)
 	{
 		std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
 		return s;
@@ -163,7 +169,7 @@ namespace sqlite3pp
 		return true;
 	}
 
-	static bool DirExists(const std::wstring& dirName_in)
+	bool DirExists(const std::wstring& dirName_in)
 	{
 		DWORD ftyp = GetFileAttributesW(dirName_in.c_str());
 		if (ftyp == INVALID_FILE_ATTRIBUTES)
@@ -171,7 +177,7 @@ namespace sqlite3pp
 		return (ftyp & FILE_ATTRIBUTE_DIRECTORY) != 0; // Check if it's a directory
 	}
 
-	static bool DirExists(const std::string& dirName_in)
+	bool DirExists(const std::string& dirName_in)
 	{
 		DWORD ftyp = GetFileAttributesA(dirName_in.c_str());
 		if (ftyp == INVALID_FILE_ATTRIBUTES)
@@ -613,7 +619,7 @@ namespace sqlite3pp
 		return copy_file(to_wstring(Src), to_wstring(Dest), OverWriteIfExist);
 	}
 
-	static void replace_all(std::wstring & data, const std::wstring &toSearch, const std::wstring &replaceStr)
+	void replace_all(std::wstring & data, const std::wstring &toSearch, const std::wstring &replaceStr)
 	{
 		if (toSearch.empty())
 			return;
@@ -625,7 +631,7 @@ namespace sqlite3pp
 		}
 	}
 
-	static void replace_all(std::string& str, const std::string& toSearch, const std::string& replaceStr)
+	void replace_all(std::string& str, const std::string& toSearch, const std::string& replaceStr)
 	{
 		if (toSearch.empty())
 			return;
@@ -635,6 +641,29 @@ namespace sqlite3pp
 			str.replace(start_pos, toSearch.length(), replaceStr);
 			start_pos += replaceStr.length(); // Move past the replaced text
 		}
+	}
+
+	std::string ReplaceAll(std::string str, const std::string& toSearch, const std::string& replaceStr)
+	{
+		replace_all(str, toSearch, replaceStr);
+		return str;
+	}
+
+	std::wstring ReplaceAll(std::wstring str, const std::wstring& toSearch, const std::wstring& replaceStr)
+	{
+		replace_all(str, toSearch, replaceStr);
+		return str;
+	}
+
+	std::string ConvertToAlphaNum(std::string str, char replacement) // Convert all characters to alpha-numeric, and make sure first character is a letter.
+	{
+		std::replace_if(str.begin(), str.end(), [](unsigned char c) {
+			return !std::isalnum(c);
+			}, replacement);
+
+		if (!isalpha(str[0]))
+			str[0] = replacement;
+		return str;
 	}
 
 	static void CheckEnv(std::wstring &src, const std::string &VarName, const std::string VarNamePrefix, const std::string VarNameSuffix)
@@ -725,9 +754,11 @@ namespace sqlite3pp
 		bool AllowNullStringReturn = false;
 #endif  // !SQLITE3PP_ALLOW_NULL_STRING_RETURN
 		std::wstring value;
-		const char * strtype = SQLITEDLLCONNECT sqlite3_column_decltype(stmt_, idx);
-		const std::string str_type = strtype == NULL ? "" : strtype;
-		if (!strtype)
+		const char* strtype = SQLITEDLLCONNECT sqlite3_column_decltype(stmt_, idx);
+		const std::string str_type = strtype == NULL ? "" : str_toupper(strtype);
+		if (strtype)
+			strtype = str_type.c_str();
+		else
 		{
 			V_COUT(WARN, "Received NULL value when getting column type for idx " << idx << ". Treating type as ASCII or UTF8.");
 		}
@@ -980,7 +1011,7 @@ namespace sqlite3pp
 	public:
 		using StrType = std::string;
 		static StrType getTableName() { return  "sqlite_master"; }
-		static StrType getColumnNames() { return  "type, name, tbl_name, rootpage, sql"; }
+		static StrType getColumnNames() { return		"type, name, tbl_name, rootpage, sql"; }
 		static StrType getSelectColumnNames() { return  "type, name, tbl_name, rootpage, sql"; }
 		template<class T> void getStreamData(T q) { q.getter() >> type >> name >> tbl_name >> rootpage >> sql; }
 		static int getColumnCount() { return 5; }
@@ -1011,7 +1042,150 @@ namespace sqlite3pp
 
 	const char *SQLiteClassBuilder::Nill = "#NILL#";
 	const char *SQLiteClassBuilder::CreateHeaderForAllTables = "%_CreateHeaderForAllTables_%";
-  ////////////////////////////////////////////////////////////////////////////////////////////
+	const std::vector<std::string> SQLiteClassBuilder::SqliteKeywordsMixCase = // List of SQLite3.h and SQLite3pp.h keywords which should not be used as class or variable names
+	{
+		"Bigint",
+		"Bool",
+		"Boolean",
+		"Character",
+		"Date",
+		"Datetime",
+		"Decimal",
+		"Double",
+		"DoublePrcsn",
+		"Float",
+		"Int",
+		"Int2",
+		"Int8",
+		"Integer",
+		"Mediumint",
+		"Nchar",
+		"Numeric",
+		"Nvarchar",
+		"Real",
+		"Smallint",
+		"StrType",
+		"Text",
+		"Tinyint",
+		"UBigint",
+		"Varchar"
+	};
+	const std::vector<std::string> SQLiteClassBuilder::CppKeywordsLowerCase = // List of C++ keywords which should not be used as class or variable names
+	{
+		"alignas",
+		"alignof",
+		"and",
+		"and_eq",
+		"asm",
+		"atomic_cancel",
+		"atomic_commit",
+		"atomic_noexcept",
+		"auto",
+		"bitand",
+		"bitor",
+		"bool",
+		"break",
+		"case",
+		"catch",
+		"char",
+		"char16_t",
+		"char32_t",
+		"char8_t",
+		"class",
+		"co_await",
+		"co_return",
+		"co_yield",
+		"compl",
+		"concept",
+		"const",
+		"const_cast",
+		"consteval",
+		"constexpr",
+		"constinit",
+		"continue",
+		"contract_assert",
+		"decltype",
+		"default",
+		"delete",
+		"do",
+		"double",
+		"dynamic_cast",
+		"else",
+		"enum",
+		"explicit",
+		"export",
+		"extern",
+		"false",
+		"float",
+		"for",
+		"friend",
+		"goto",
+		"if",
+		"inline",
+		"int",
+		"long",
+		"mutable",
+		"namespace",
+		"new",
+		"noexcept",
+		"not",
+		"not_eq",
+		"nullptr",
+		"operator",
+		"or",
+		"or_eq",
+		"private",
+		"protected",
+		"public",
+		"reflexpr",
+		"register",
+		"reinterpret_cast",
+		"requires",
+		"return",
+		"short",
+		"signed",
+		"sizeof",
+		"static",
+		"static_assert",
+		"static_cast",
+		"struct",
+		"switch",
+		"synchronized",
+		"template",
+		"this",
+		"thread_local",
+		"throw",
+		"true",
+		"try",
+		"typedef",
+		"typeid",
+		"typename",
+		"union",
+		"unsigned",
+		"using",
+		"virtual",
+		"void",
+		"volatile",
+		"wchar_t",
+		"while",
+		"xor",
+		"xor_eq"
+	};
+	////////////////////////////////////////////////////////////////////////////////////////////
+
+	std::string SQLiteClassBuilder::MakeValidClassOrVarName(const std::string &name)
+	{
+		std::string newname = ConvertToAlphaNum(name, '_');
+		if (std::find(SqliteKeywordsMixCase.begin(), SqliteKeywordsMixCase.end(), newname) != SqliteKeywordsMixCase.end())
+			newname = str_tolower(newname);
+		if (std::find(CppKeywordsLowerCase.begin(), CppKeywordsLowerCase.end(), newname) != CppKeywordsLowerCase.end())
+		{
+			newname[0] = std::toupper(newname[0]);
+			if (std::find(SqliteKeywordsMixCase.begin(), SqliteKeywordsMixCase.end(), newname) != SqliteKeywordsMixCase.end())
+				newname = str_toupper(newname);
+		}
+		return newname;
+	}
 
 	std::string SQLiteClassBuilder::GetType(const std::string &tblVw, const std::string &colName, const char* str_org)
 	{
@@ -1055,9 +1229,9 @@ namespace sqlite3pp
 				V_COUT(DETAIL, "Only setting DB types to basic types due to compiler #define SQLITE3PP_CONVERT_TO_RESULTING_AFFINITY(" << UseBaseTypes << ") or input option use_basic_types_only(" << m_options.m.use_basic_types_only << ")");
 			}
 
-			if (strcmp("INTEGER", str) == 0 || strcmp("INT", str) == 0 || strcmp("TINYINT", str) == 0 || strcmp("SMALLINT", str) == 0 || strcmp("MEDIUMINTSMALLINT", str) == 0 || strcmp("BIGINT", str) == 0 || strcmp("UNSIGNED BIG INT", str) == 0 || strcmp("INT2", str) == 0 || strcmp("INT8", str) == 0)
+			if (strcmp("INTEGER", str) == 0 || strcmp("INT", str) == 0 || strcmp("TINYINT", str) == 0 || strcmp("SMALLINT", str) == 0 || strcmp("MEDIUMINT", str) == 0 || strcmp("BIGINT", str) == 0 || strcmp("UNSIGNED BIG INT", str) == 0 || strcmp("UBIGINT", str) == 0 || strcmp("INT2", str) == 0 || strcmp("INT8", str) == 0)
 				return "int";
-			if (strcmp("REAL", str) == 0 || strcmp("DOUBLE", str) == 0 || strcmp("DOUBLE PRECISION", str) == 0 || strcmp("FLOAT", str) == 0 || strncmp("DECIMAL", str, 7) == 0 || strcmp("BOOLEANL", str) == 0 || strcmp("BOOLEAN", str) == 0 || strcmp("BOOL", str) == 0 || strcmp("DATE", str) == 0 || strcmp("DATETIME", str) == 0 || strcmp("TIMESTAMP", str) == 0 || strcmp("NUMERIC", str) == 0 || strcmp("NUMBER", str) == 0)
+			if (strcmp("REAL", str) == 0 || strcmp("DOUBLE", str) == 0 || strcmp("DOUBLE PRECISION", str) == 0 || strcmp("DOUBLEPRCSN", str) == 0 || strcmp("FLOAT", str) == 0 || strncmp("DECIMAL", str, 7) == 0 || strcmp("BOOLEANL", str) == 0 || strcmp("BOOLEAN", str) == 0 || strcmp("BOOL", str) == 0 || strcmp("DATE", str) == 0 || strcmp("DATETIME", str) == 0 || strcmp("TIMESTAMP", str) == 0 || strcmp("NUMERIC", str) == 0 || strcmp("NUMBER", str) == 0)
 				return "double";
 
 			if (m_options.m.use_basic_types_only)
@@ -1083,7 +1257,7 @@ namespace sqlite3pp
 				return "Tinyint";
 			if (strcmp("SMALLINT", str) == 0)
 				return "Smallint";
-			if (strcmp("MEDIUMINTSMALLINT", str) == 0)
+			if (strcmp("MEDIUMINT", str) == 0)
 				return "Mediumint";
 			if (strcmp("BOOLEAN", str) == 0 || strcmp("BOOLEANL", str) == 0 || strcmp("BOOL", str) == 0)
 				return "Boolean";
@@ -1102,6 +1276,8 @@ namespace sqlite3pp
 			if (strcmp("REAL", str) == 0)
 				return "Real";
 			if (strcmp("DOUBLE PRECISION", str) == 0)
+				return "DoublePrcsn";
+			if (strcmp("DOUBLEPRCSN", str) == 0)
 				return "DoublePrcsn";
 			if (strcmp("DOUBLE", str) == 0)
 				return "Double";
@@ -1125,10 +1301,9 @@ namespace sqlite3pp
 			if (strcmp("TIMESTAMP", str) == 0)
 				return "Bigint";
 		}
-
-		V_COUT(WARN, "Received unknown type ('" << str_org << "') from DB  for column '" << colName << "' in table/view '" << tblVw << "'.");
+		V_COUT(ERROR, "Could not find valid type for table/view '" << tblVw << "' column '" << colName << "' having type '" << str << "'");
 		assert(0); // Always assert, because the code should not reach this point.
-		V_COUT(WARN, "Gracefully continuing by returning default type '" << DefaultType << "'.");
+		V_COUT(WARN, "Using '" << DefaultType << "' type for column '" << tblVw << "'.'" << colName << "'instead of type '" << str << "'");
 		return DefaultType; // Handle it gracefully for release mode.
 	}
 
@@ -1142,7 +1317,7 @@ namespace sqlite3pp
 	{
 		if (m_options.h.header_prefix.empty())
 		{
-			std::string filename = getFileName(m_db_filename);
+			std::string filename = sqlite3pp::getFileName(m_db_filename);
 			replace_all(filename, ".", "_");
 			m_options.h.header_prefix = "SQL_" + filename + "_";
 		}
@@ -1195,7 +1370,7 @@ namespace sqlite3pp
 	{
 		V_COUT(DEBUG, "Entering with arguments: '" << TableName << "', ofstream, '" << ClassName << "', '" << HeaderUpper << "', '" << FirstColumnName << "', '" << LastColumnName << "', " << AppendToVect);
 		std::ios_base::openmode openMode = m_AppendTableToHeader ? std::ios_base::out | std::ios_base::app : std::ios_base::out;
-		ClassName = m_options.h.header_prefix + TableName + m_options.h.header_suffix;
+		ClassName = m_options.h.header_prefix + sqlite3pp::ConvertToAlphaNum(TableName) + m_options.h.header_suffix;
 		const std::string HeaderFileName = ClassName + "." + m_options.h.file_type;
 		if (!DirExists(m_options.h.dest_folder))
 			if (_mkdir(m_options.h.dest_folder.c_str()) != 0)
@@ -1265,7 +1440,6 @@ namespace sqlite3pp
 				myfile << " << std::endl;" << std::endl;
 			}
 			myfile << TopHeaderCommnetsPrt2 << std::endl;
-			
 		}
 		// Add includes needed to support specified m_options.str_type
 		myfile << "#ifndef " << GetValidFuncName(HeaderUpper) << std::endl;
@@ -1391,7 +1565,7 @@ namespace sqlite3pp
 		if (TypeName == "BOOLEAN")
 			return " = false";
 		if (TypeName == "INTEGER" || TypeName == "INT" || TypeName == "INT2" || TypeName == "INT8" || TypeName == "TINYINT" ||
-			TypeName == "SMALLINT" || TypeName == "MEDIUMINT" || TypeName == "BIGINT" || TypeName == "UBIGINT")
+			TypeName == "SMALLINT" || TypeName == "MEDIUMINT" || TypeName == "BIGINT" || TypeName == "UNSIGNED BIG INT" || TypeName == "UBIGINT")
 			return " = 0";
 		if (TypeName == "REAL" || TypeName == "DOUBLEPRCSN" || TypeName == "NUMERIC" || TypeName == "DECIMAL" || TypeName == "DOUBLE" || TypeName == "FLOAT")
 			return " = 0.0f";
@@ -1423,14 +1597,18 @@ namespace sqlite3pp
 		std::string LastColumnName = "get_MyColumnFoo()";
 		for (int i = 0; i < qry->column_count(); ++i)
 		{
-			if (strstr(qry->column_name(i), ":") != NULL) continue;
+			if (strstr(qry->column_name(i), ":") != NULL) 
+				continue;
+			std::string columnName = MakeValidClassOrVarName(qry->column_name(i));
+			if (columnName != qry->column_name(i))
+				m_ColumnNotUsingOriginalName[columnName] = qry->column_name(i); // key = changed name, value = original name
 
-			columns.push_back(std::pair<std::string, std::string>(qry->column_name(i), GetType(TableName, qry->column_name(i), qry->column_decltype(i))));
-			columns_with_comma.push_back(std::pair<std::string, std::string>(qry->column_name(i), i ? ", " : ""));
+			columns.push_back(std::pair<std::string, std::string>(columnName, GetType(TableName, columnName, qry->column_decltype(i))));
+			columns_with_comma.push_back(std::pair<std::string, std::string>(columnName, i ? ", " : ""));
 			if (FirstColumnName.empty())
-				FirstColumnName = qry->column_name(i);
+				FirstColumnName = columnName;
 			else
-				LastColumnName = qry->column_name(i);
+				LastColumnName = columnName;
 		}
 		std::ofstream myfile;
 		std::string ClassName, HeaderUpper;
@@ -1451,7 +1629,12 @@ namespace sqlite3pp
 			
 			// Define data member variables associated with the table/view
 			for (auto& c : columns)
-				myfile << "\t" << c.second << " " << GetValidFuncName(c.first) << InitializeValue(c.second) << ";" << std::endl;
+			{
+				std::string comment = "";
+				if (m_ColumnNotUsingOriginalName.find(c.first) != m_ColumnNotUsingOriginalName.end())
+					comment = " // Original column name: \"" + m_ColumnNotUsingOriginalName[c.first] + "\", change due to keyword conflict or invalid naming convention.";
+				myfile << "\t" << c.second << " " << GetValidFuncName(c.first) << InitializeValue(c.second) << ";" << comment << std::endl;
+			}
 
 			myfile << "\npublic:" << std::endl;
 			// Create a define type for strings

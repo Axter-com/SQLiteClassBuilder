@@ -20,6 +20,7 @@
 #define SQLITE3PP_EZ_H
 #include "sqlite3pp.h"
 #include <vector>
+#include <map>
 #include <string>
 #include <iostream>
 #include <regex>
@@ -443,12 +444,22 @@ namespace sqlite3pp
 
 	bool dir_exists(std::string foldername, bool RepaceEnvVar = false);
 	bool dir_exists(std::wstring foldername, bool RepaceEnvVar = false);
+	bool DirExists(const std::string& dirName_in);
+	bool DirExists(const std::wstring& dirName_in);
 	bool file_exists(std::string filename, bool RepaceEnvVar = false);
 	bool file_exists(std::wstring filename, bool RepaceEnvVar = false);
 	bool copy_file(std::string Src, std::string Dest, bool OverWriteIfExist = false);
 	bool copy_file(std::wstring Src, std::wstring Dest, bool OverWriteIfExist = false);
+	std::string getFileName(const std::string& fullPath);
+	void replace_all(std::string& str, const std::string& toSearch, const std::string& replaceStr);
+	void replace_all(std::wstring& data, const std::wstring& toSearch, const std::wstring& replaceStr);
+	std::string ReplaceAll(std::string str, const std::string& toSearch, const std::string& replaceStr);
+	std::wstring ReplaceAll(std::wstring str, const std::wstring& toSearch, const std::wstring& replaceStr);
+	std::string ConvertToAlphaNum(std::string str, char replacement = '_'); // Convert all characters to Alpha-Numeric or underscore, and make sure first character is a letter. Converted characters are converted to underscore by default
+	std::string str_tolower(std::string s);
+	std::string str_toupper(std::string s);
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Start of implementation for SQLiteClassBuilder: The SQLiteClassBuilder class is used to create C++ header files for tables and views
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -496,25 +507,6 @@ namespace sqlite3pp
 
 	class SQLiteClassBuilder // Use SQLiteClassBuilder to create C++ header files for tables and views
 	{
-		sqlite3pp::database m_db;
-		const std::string m_db_filename;
-		TblClassOptions m_options;
-		const TblClassOptions m_options_org;
-		bool m_AppendTableToHeader;
-		std::vector<std::string> m_HeadersCreated;
-		std::vector<std::string> m_ClassNames;
-		std::string GetType(const std::string &tblVw, const std::string &colName, const char* str);
-		std::string GetType_s(const std::string &tblVw, const std::string &colName, const char* str) const;
-		TblClassOptions Init(const StrOptions & stroptions, const MiscOptions & miscoptions, const HeaderOpt & headeropt);
-		void Init(
-			  const std::string& TableOrView_name
-			, const std::string &AndWhereClause
-		);
-		bool ProcessClassCreation(const std::string& ClassName, std::string QueryStr = "");
-		static const std::vector<std::pair<std::string, std::string> > columns_dummy;
-		bool CreateHeaderPrefix(const std::string& TableName, std::ofstream &myfile, 
-			std::string& ClassName, std::string& HeaderUpper, std::string FirstColumnName = "", std::string LastColumnName = "", 
-			bool AppendToVect = true, const std::vector<std::pair<std::string, std::string> >& columns = columns_dummy);
 	public:
 		// This constructor is best to use when creating a header for all tables in the constructor.  (Headers can also be created by calling CreateHeader or CreateAllHeaders)
 		SQLiteClassBuilder(const std::string& Db_filename						
@@ -567,6 +559,31 @@ namespace sqlite3pp
 
 		static const char *Nill; // = "#NILL#"
 		static const char *CreateHeaderForAllTables; // = "%_CreateHeaderForAllTables_%"
+		static const std::vector<std::string> SqliteKeywordsMixCase; // List of SQLite3.h and SQLite3pp.h keywords which should not be used as class or variable names
+		static const std::vector<std::string> CppKeywordsLowerCase; // List of C++ keywords which should not be used as class or variable names
+	private:
+		sqlite3pp::database m_db;
+		const std::string m_db_filename;
+		TblClassOptions m_options;
+		const TblClassOptions m_options_org;
+		bool m_AppendTableToHeader;
+		std::vector<std::string> m_HeadersCreated;
+		std::vector<std::string> m_ClassNames;
+		std::map<std::string, std::string> m_ColumnNotUsingOriginalName;
+
+		std::string GetType(const std::string& tblVw, const std::string& colName, const char* str);
+		std::string GetType_s(const std::string& tblVw, const std::string& colName, const char* str) const;
+		TblClassOptions Init(const StrOptions& stroptions, const MiscOptions& miscoptions, const HeaderOpt& headeropt);
+		void Init(
+			const std::string& TableOrView_name
+			, const std::string& AndWhereClause
+		);
+		bool ProcessClassCreation(const std::string& ClassName, std::string QueryStr = "");
+		static const std::vector<std::pair<std::string, std::string> > columns_dummy;
+		bool CreateHeaderPrefix(const std::string& TableName, std::ofstream& myfile,
+			std::string& ClassName, std::string& HeaderUpper, std::string FirstColumnName = "", std::string LastColumnName = "",
+			bool AppendToVect = true, const std::vector<std::pair<std::string, std::string> >& columns = columns_dummy);
+		static std::string MakeValidClassOrVarName(const std::string& name); // key = changed name, value = original name
 	};
 
 	using SqlBld = SQLiteClassBuilder; // Short alias
