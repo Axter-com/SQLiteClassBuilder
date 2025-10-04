@@ -1567,7 +1567,7 @@ namespace sqlite3pp
 		if (TypeName == "INTEGER" || TypeName == "INT" || TypeName == "INT2" || TypeName == "INT8" || TypeName == "TINYINT" ||
 			TypeName == "SMALLINT" || TypeName == "MEDIUMINT" || TypeName == "BIGINT" || TypeName == "UNSIGNED BIG INT" || TypeName == "UBIGINT")
 			return " = 0";
-		if (TypeName == "REAL" || TypeName == "DOUBLEPRCSN" || TypeName == "NUMERIC" || TypeName == "DECIMAL" || TypeName == "DOUBLE" || TypeName == "FLOAT")
+		if (TypeName == "REAL" || TypeName == "DOUBLE PRECISION" || TypeName == "DOUBLEPRCSN" || TypeName == "NUMERIC" || TypeName == "DECIMAL" || TypeName == "DOUBLE" || TypeName == "FLOAT")
 			return " = 0.0f";
 		if (m_options.m.initialize_str_member_var)
 		{

@@ -569,7 +569,7 @@ namespace sqlite3pp
 		bool m_AppendTableToHeader;
 		std::vector<std::string> m_HeadersCreated;
 		std::vector<std::string> m_ClassNames;
-		std::map<std::string, std::string> m_ColumnNotUsingOriginalName;
+		std::map<std::string, std::string> m_ColumnNotUsingOriginalName; // key = changed name, value = original name
 
 		std::string GetType(const std::string& tblVw, const std::string& colName, const char* str);
 		std::string GetType_s(const std::string& tblVw, const std::string& colName, const char* str) const;
@@ -583,7 +583,7 @@ namespace sqlite3pp
 		bool CreateHeaderPrefix(const std::string& TableName, std::ofstream& myfile,
 			std::string& ClassName, std::string& HeaderUpper, std::string FirstColumnName = "", std::string LastColumnName = "",
 			bool AppendToVect = true, const std::vector<std::pair<std::string, std::string> >& columns = columns_dummy);
-		static std::string MakeValidClassOrVarName(const std::string& name); // key = changed name, value = original name
+		static std::string MakeValidClassOrVarName(const std::string& name);
 	};
 
 	using SqlBld = SQLiteClassBuilder; // Short alias

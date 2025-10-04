@@ -92,9 +92,9 @@ namespace sqlite3pp
 				if (commonProgLangSettings.m_MiscOptions.use_basic_types_only)
 				{
 					// String types
-					if (strcmp("TEXT", str) == 0 || strncmp("CHARACTER", str, 9) == 0 || strncmp("VARCHAR", str, 7) == 0 || strncmp("VARYING CHARACTER", str, 17) == 0)
+					if (strcmp("TEXT", str) == 0 || strncmp("CHARACTER", str, 9) == 0 || strncmp("VARCHAR", str, 7) == 0 || strncmp("VARYING CHARACTER", str, 17) == 0 || strcmp("STRING", str) == 0 || strcmp("TSTRING", str) == 0)
 						return "std::string";
-					if (strncmp("NVARCHAR", str, 8) == 0 || strncmp("NATIVE CHARACTER", str, 16) == 0 || strncmp("NCHAR", str, 5) == 0)
+					if (strncmp("NVARCHAR", str, 8) == 0 || strncmp("NATIVE CHARACTER", str, 16) == 0 || strncmp("NCHAR", str, 5) == 0 || strcmp("WSTRING", str) == 0)
 						return "std::wstring";
 				}
 			}
@@ -130,9 +130,9 @@ namespace sqlite3pp
 					return "Decimal";
 				if (strcmp("REAL", str) == 0)
 					return "Real";
-				if (strcmp("DOUBLEPRCSN", str) == 0)
-					return "DoublePrcsn";
 				if (strcmp("DOUBLE PRECISION", str) == 0)
+					return "DoublePrcsn";
+				if (strcmp("DOUBLEPRCSN", str) == 0)
 					return "DoublePrcsn";
 				if (strcmp("DOUBLE", str) == 0)
 					return "Double";
@@ -140,17 +140,15 @@ namespace sqlite3pp
 					return "Float";
 
 				// String types
-				if (strcmp("TEXT", str) == 0 || str_type.find(" SUB_TYPE TEXT") != std::string::npos)
+				if (strcmp("TEXT", str) == 0 || str_type.find(" SUB_TYPE TEXT") != std::string::npos || strcmp("TSTRING", str) == 0)
 					return "Text";
 				if (str_type.find("CHAR") == 0)
 					return "Character";
-				if (str_type.find("VARYING CHARACTER") == 0
-					|| str_type.find("VARCHAR") == 0)
+				if (str_type.find("VARYING CHARACTER") == 0	|| str_type.find("VARCHAR") == 0 || strcmp("STRING", str) == 0)
 					return "Varchar";
-				if (str_type.find("NATIVE CHARACTER") == 0
-					|| str_type.find("NCHAR") == 0)
+				if (str_type.find("NATIVE CHARACTER") == 0 || str_type.find("NCHAR") == 0)
 					return "Nchar";
-				if (str_type.find("NVARCHAR") == 0)
+				if (str_type.find("NVARCHAR") == 0 || strcmp("WSTRING", str) == 0)
 					return "Nvarchar";
 
 				if (strcmp("TIMESTAMP", str) == 0)
@@ -416,6 +414,164 @@ namespace sqlite3pp
 		"xor_eq"
 	};
 
+	class NameChangeDetails
+	{
+	public:
+		std::string originalName;
+		std::string OptionalAdditionalChangeDetails; // If populated, this will be added as a comment in the generated code. It's main usage is for custom programming languages and/or derived classes to add additional information about the name change.
+		int changeDetails = 0; // Bit field of ChangeDetails values
+	};
+	char SqlClassBuilder::m_SpaceCharReplacementCharacter = '_';
+
+	std::string SqlClassBuilder::ConvertToValidAlphaNum(std::string str, ChangeDetails& changeDetails) // Convert all characters to alpha-numeric, and make sure first character is a letter.
+	{
+		std::string strAfterSpaceCheck = ReplaceAll(str, " ", std::string(1, m_SpaceCharReplacementCharacter));
+		if (str != strAfterSpaceCheck)
+		{
+			changeDetails = static_cast<ChangeDetails>(changeDetails | SpaceCharInName);
+			changeDetails = static_cast<ChangeDetails>(changeDetails | NeedToUseOriginalSqlNameInSqlQuery);
+			str = strAfterSpaceCheck;
+		}
+
+		// Replace all non alpha-numeric characters with replacement character
+		std::replace_if(str.begin(), str.end(), [](unsigned char c) {return !std::isalnum(c);}, m_SpaceCharReplacementCharacter);
+		if (str != strAfterSpaceCheck)
+		{
+			changeDetails = static_cast<ChangeDetails>(changeDetails | InvalidChars);
+			changeDetails = static_cast<ChangeDetails>(changeDetails | NeedToUseOriginalSqlNameInSqlQuery);
+		}
+
+		if (!isalpha(str[0]))
+		{
+			str[0] = m_SpaceCharReplacementCharacter;
+			changeDetails = static_cast<ChangeDetails>(changeDetails | ChangedFirstChar);
+			changeDetails = static_cast<ChangeDetails>(changeDetails | NeedToUseOriginalSqlNameInSqlQuery);
+		}
+		return str;
+	}
+
+
+	std::string SqlClassBuilder::MakeValidClassOrVarName(const std::string& name, bool ColumnName)
+	{
+		ChangeDetails changeDetails = ColumnName? WasColumnName : TableOrViewName;
+		std::string validName = MakeValidClassOrVarName(name, changeDetails);
+		if (name != validName)
+		{
+			NameChangeDetails nameChangeDetails = { name, "", changeDetails};
+			m_NotUsingOriginalName[validName] = nameChangeDetails; // key = changed name, value = original name and change details.
+			V_COUT(DETAIL, "Converted name '" << name << "' to name '" << validName << "' due to either invalid naming convention, or keyword conflict.");
+			if (changeDetails & NeedToUseOriginalSqlNameInSqlQuery)
+			{
+				m_NeedToUseOriginalSqlNameInSqlQuery[validName] = name; // key = changed name, value = original name.
+				V_COUT(DETAIL, "Will need to use original name '" << name << "' in SQL query, instead of converted valid name '" << validName << "'");
+			}
+		}
+		return validName;
+	}
+
+	std::string SqlClassBuilder::MakeValidClassOrVarName(const std::string& name, ChangeDetails& changeDetails)
+	{
+		std::string newname = ConvertToValidAlphaNum(name, changeDetails);
+		std::string name_lower = sqlite3pp::str_tolower(newname);
+		std::string name_upper = sqlite3pp::str_toupper(newname);
+		bool match_all_lower = (std::find(m_CppKeywordsLowerCase.begin(), m_CppKeywordsLowerCase.end(), name_lower) != m_CppKeywordsLowerCase.end() ||
+			std::find(m_OtherProgLangKeywordsLowerCase.begin(), m_OtherProgLangKeywordsLowerCase.end(), name_lower) != m_OtherProgLangKeywordsLowerCase.end());
+		bool match_all_upper = std::find(m_OtherProgLangKeywordsUpperCase.begin(), m_OtherProgLangKeywordsUpperCase.end(), name_upper) != m_OtherProgLangKeywordsUpperCase.end();
+		bool originally_all_upper = newname == sqlite3pp::str_toupper(newname);
+		bool originally_all_lower = newname == sqlite3pp::str_tolower(newname);
+
+		if (originally_all_upper && match_all_upper)
+		{
+			changeDetails = static_cast<ChangeDetails>(changeDetails | UppperCaseKeywordConflict);
+			if (match_all_lower)
+			{
+				changeDetails = static_cast<ChangeDetails>(changeDetails | FixedKeywordConflictWithMakeMixCase);
+				newname[0] = std::toupper(newname[0]); // Make it mix case
+			}
+			else
+			{
+				changeDetails = static_cast<ChangeDetails>(changeDetails | FixedKeywordConflictWithMakeLowerCase);
+				return str_tolower(newname);
+			}
+		}
+		else if (originally_all_lower && match_all_lower)
+		{
+			changeDetails = static_cast<ChangeDetails>(changeDetails | LowerCaseKeywordConflict);
+			if (match_all_upper)
+			{
+				changeDetails = static_cast<ChangeDetails>(changeDetails | FixedKeywordConflictWithMakeRevMixCase);
+				newname[0] = std::tolower(newname[0]); // Make it reverse mix case
+			}
+			else
+			{
+				changeDetails = static_cast<ChangeDetails>(changeDetails | FixedKeywordConflictWithMakeUpperCase);
+				return str_toupper(newname);
+			}
+		}
+		
+		if (std::find(m_SqliteKeywordsMixCase.begin(), m_SqliteKeywordsMixCase.end(), newname) != m_SqliteKeywordsMixCase.end() ||
+			std::find(m_OtherProgLangKeywordsMixCase.begin(), m_OtherProgLangKeywordsMixCase.end(), newname) != m_OtherProgLangKeywordsMixCase.end())
+		{
+			changeDetails = static_cast<ChangeDetails>(changeDetails | MixCaseKeywordConflict);
+			if (match_all_lower)
+			{
+				if (match_all_upper)
+				{
+					bool append_underscore = true;
+					if (newname.size() > 1)
+					{
+						for(size_t i = 0; i < newname.size();++i)
+						{
+							newname = str_toupper(newname);
+							newname[i] = std::tolower(newname[i]); // Special upper mix case
+							if (std::find(m_SqliteKeywordsMixCase.begin(), m_SqliteKeywordsMixCase.end(), newname) == m_SqliteKeywordsMixCase.end() &&
+								std::find(m_OtherProgLangKeywordsMixCase.begin(), m_OtherProgLangKeywordsMixCase.end(), newname) == m_OtherProgLangKeywordsMixCase.end())
+							{
+								changeDetails = static_cast<ChangeDetails>(changeDetails | FixedKeywordConflictWithSpecialMixUpperCase);
+								append_underscore = false;
+								break;
+							}
+						}
+						if (append_underscore) 
+						{
+							for(size_t i = 0; i < newname.size();++i)
+							{
+								newname = str_tolower(newname);
+								newname[i] = std::toupper(newname[i]); // Special lower mix case
+								if (std::find(m_SqliteKeywordsMixCase.begin(), m_SqliteKeywordsMixCase.end(), newname) == m_SqliteKeywordsMixCase.end() &&
+									std::find(m_OtherProgLangKeywordsMixCase.begin(), m_OtherProgLangKeywordsMixCase.end(), newname) == m_OtherProgLangKeywordsMixCase.end())
+								{
+									changeDetails = static_cast<ChangeDetails>(changeDetails | FixedKeywordConflictWithSpecialMixLowerCase);
+									append_underscore = false;
+									break;
+								}
+							}
+						}
+					}
+					
+					if (append_underscore)
+					{ // Do this as last resort, because we'll have to make sure the SQL query uses the original name in the query.
+						changeDetails = static_cast<ChangeDetails>(changeDetails | FixedKeywordConflictWithAppendUnderscore);
+						changeDetails = static_cast<ChangeDetails>(changeDetails | NeedToUseOriginalSqlNameInSqlQuery);
+						newname = newname + "____";
+					}
+				}
+				else
+				{
+					changeDetails = static_cast<ChangeDetails>(changeDetails | FixedKeywordConflictWithMakeUpperCase);
+					newname = str_toupper(newname);
+				}
+			}
+			else
+			{
+				changeDetails = static_cast<ChangeDetails>(changeDetails | FixedKeywordConflictWithMakeLowerCase);
+				newname = str_tolower(newname);
+			}
+		}
+
+		return newname;
+	}
+
 	std::set<std::string> SqlClassBuilder::m_OtherProgLangKeywordsMixCase // List of other programming languages mix case keywords which should not be used as class or variable names
 	{
 	};
@@ -434,10 +590,14 @@ namespace sqlite3pp
 		replace_all(name, " ", "__");
 		return name;
 	}
+	bool SqlClassBuilder::CreateAllFiles(ProgLang BitListOfTargetLanguages)
+	{
+		return CreateAllFiles(static_cast<std::uint64_t>(BitListOfTargetLanguages));
+	}
 
 	bool SqlClassBuilder::CreateAllFiles(std::uint64_t BitListOfTargetLanguages)
 	{
-		if (BitListOfTargetLanguages == (std::uint64_t)ProgLang::NoLanguageSet && m_LangsToProcess.empty())
+		if (BitListOfTargetLanguages == static_cast<std::uint64_t>(ProgLang::NoLanguageSet) && m_LangsToProcess.empty())
 			return false;
 		m_BitListOfLangsToProcess = BitListOfTargetLanguages;
 		if (!Initialize())
@@ -460,13 +620,13 @@ namespace sqlite3pp
 		bool ReturnValue = true;
 		for (auto& lang : m_LangsToProcess)
 		{
-			if (m_pData->GetTableNamesAndTypes(m_TableNamesAndTypes, m_DataNamesAndTypes, m_ProgLangCommonSettings[(ProgLang)lang], m_ProgLangSpecialSettings[(ProgLang)lang]))
+			if (m_pData->GetTableNamesAndTypes(m_TableNamesAndTypes, m_DataNamesAndTypes, m_ProgLangCommonSettings[static_cast<ProgLang>(lang)], m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)]))
 			{
 				std::vector<std::string> FileList;
 				for (auto& tb : m_TableNamesAndTypes)
 				{
 					std::string ClassName, FileNameOnly;
-					std::string FileName = GetFileNameAndClassName(tb.first, FileNameOnly, ClassName, (ProgLang)lang);
+					std::string FileName = GetFileNameAndClassName(tb.first, FileNameOnly, ClassName, static_cast<ProgLang>(lang));
 					FileList.push_back(FileNameOnly);
 					std::ofstream myfile;
 					myfile.open(FileName.c_str(), std::ios_base::out);
@@ -476,50 +636,50 @@ namespace sqlite3pp
 						return false;
 					}
 					const std::string HeaderGuards = GetValidFuncName(sqlite3pp::str_toupper(ClassName + "_H"));
-					if (m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.include_comments)
+					if (m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.include_comments)
 					{
-						if (!AddCommentsToFile(myfile, (ProgLang)lang, ClassName, tb.first))
+						if (!AddCommentsToFile(myfile, static_cast<ProgLang>(lang), ClassName, tb.first))
 							V_COUT(WARN, "Failed to add comments to file '" << FileName << "'");
 					}
-					if (m_ProgLangSpecialSettings[(ProgLang)lang].find("requires_header_guards") != m_ProgLangSpecialSettings[(ProgLang)lang].end() && 
-						m_ProgLangSpecialSettings[(ProgLang)lang]["requires_header_guards"] == "true")
+					if (m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)].find("requires_header_guards") != m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)].end() &&
+						m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)]["requires_header_guards"] == "true")
 					{
 						myfile << "#ifndef " << HeaderGuards << std::endl;
 						myfile << "#define " << HeaderGuards << std::endl;
 					}
-					if (m_ProgLangSpecialSettings[(ProgLang)lang].find("header_include") != m_ProgLangSpecialSettings[(ProgLang)lang].end() &&
-						!m_ProgLangSpecialSettings[(ProgLang)lang]["header_include"].empty())
-						myfile << m_ProgLangSpecialSettings[(ProgLang)lang]["header_include"] << std::endl;
+					if (m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)].find("header_include") != m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)].end() &&
+						!m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)]["header_include"].empty())
+						myfile << m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)]["header_include"] << std::endl;
 
-					if (!m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.ProgLangClassType.empty())
+					if (!m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.ProgLangClassType.empty())
 					{
-						myfile << "\n" << m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.ProgLangClassType << " " << GetValidFuncName(ClassName) << m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.ParrentClass << "\n{" << std::endl;
-						if (m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.include_table_interface)
+						myfile << "\n" << m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.ProgLangClassType << " " << GetValidFuncName(ClassName) << m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.ParrentClass << "\n{" << std::endl;
+						if (m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.include_table_interface)
 						{
-							if (m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.include_comments && !m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.SingleLineComment.empty())
-								myfile << "\t" << m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.SingleLineComment << " A member variable for each field in the table" << std::endl;
-							if (!m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.MemberVarProtectionType.empty())
-								myfile << m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.MemberVarProtectionType << std::endl;
+							if (m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.include_comments && !m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.SingleLineComment.empty())
+								myfile << "\t" << m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.SingleLineComment << " A member variable for each field in the table" << std::endl;
+							if (!m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.MemberVarProtectionType.empty())
+								myfile << m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.MemberVarProtectionType << std::endl;
 
 							const std::map<std::string, std::string>& columns = m_DataNamesAndTypes[tb.first];
 							// Define data member variables associated with the table/view
 							for (auto& c : columns)
-								myfile << "\t" << c.second << " " << GetValidFuncName(c.first) << InitializeValue(c.second, (ProgLang)lang) << ";" << std::endl;
-							if (m_ProgLangSpecialSettings[(ProgLang)lang].find("function_protection") != m_ProgLangSpecialSettings[(ProgLang)lang].end() &&
-								!m_ProgLangSpecialSettings[(ProgLang)lang]["function_protection"].empty())
-								myfile << "\n" << m_ProgLangSpecialSettings[(ProgLang)lang]["function_protection"] << std::endl;
-							if (!m_ProgLangCommonSettings[(ProgLang)lang].m_TypeOptions.str_type.empty())
+								myfile << "\t" << c.second << " " << GetValidFuncName(c.first) << InitializeValue(c.second, static_cast<ProgLang>(lang)) << ";" << std::endl;
+							if (m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)].find("function_protection") != m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)].end() &&
+								!m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)]["function_protection"].empty())
+								myfile << "\n" << m_ProgLangSpecialSettings[static_cast<ProgLang>(lang)]["function_protection"] << std::endl;
+							if (!m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_TypeOptions.str_type.empty())
 							{
 								// Create a define type for strings
-								myfile << "\tusing StrType = " << m_ProgLangCommonSettings[(ProgLang)lang].m_TypeOptions.str_type << ";" << std::endl;
+								myfile << "\tusing StrType = " << m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_TypeOptions.str_type << ";" << std::endl;
 							}
-							if (m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.create_constructor)
+							if (m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.create_constructor)
 							{
-								if (m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.include_comments)
+								if (m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.include_comments)
 									myfile << "\t// Constructors" << std::endl;
 								// These constructors are only useful if method setData is created.
 								myfile << "\t" << GetValidFuncName(ClassName) << "() {}";  // Allow default constructor to still work
-								if (m_ProgLangCommonSettings[(ProgLang)lang].m_MiscOptions.include_comments)
+								if (m_ProgLangCommonSettings[static_cast<ProgLang>(lang)].m_MiscOptions.include_comments)
 									myfile << " // Default constructor";
 								myfile << std::endl;
 							}
@@ -544,7 +704,7 @@ namespace sqlite3pp
 		if (TypeName == "INTEGER" || TypeName == "INT" || TypeName == "INT2" || TypeName == "INT8" || TypeName == "TINYINT" ||
 			TypeName == "SMALLINT" || TypeName == "MEDIUMINT" || TypeName == "BIGINT" || TypeName == "UNSIGNED BIG INT" || TypeName == "UBIGINT")
 			return " = 0";
-		if (TypeName == "REAL" || TypeName == "DOUBLEPRCSN" || TypeName == "NUMERIC" || TypeName == "DECIMAL" || TypeName == "DOUBLE" || TypeName == "FLOAT")
+		if (TypeName == "REAL" || TypeName == "DOUBLE PRECISION" || TypeName == "DOUBLEPRCSN" || TypeName == "NUMERIC" || TypeName == "DECIMAL" || TypeName == "DOUBLE" || TypeName == "FLOAT")
 			return " = 0.0f";
 		if (m_ProgLangCommonSettings[lang].m_MiscOptions.initialize_str_member_var)
 		{
@@ -562,7 +722,7 @@ namespace sqlite3pp
 	{
 		if (m_ProgLangCommonSettings[lang].m_MiscOptions.SartOfMultiLineComment.empty() || m_ProgLangCommonSettings[lang].m_MiscOptions.EndOfMultiLineComment.empty())
 		{
-			V_COUT(WARN, "Failed to add comments because program language '" << (std::uint64_t)lang << "' is missing SartOfMultiLineComment and/or EndOfMultiLineComment.");
+			V_COUT(WARN, "Failed to add comments because program language '" << static_cast<std::uint64_t>(lang) << "' is missing SartOfMultiLineComment and/or EndOfMultiLineComment.");
 			return false;
 		}
 		static const char TopHeaderCommnetsPrt1[] = " This file was automatically generated using [SqlClassBuilder and Sqlite3pp_EZ].\nSqlClassBuilder and Sqlite3pp_EZ Copyright (C) 2025 David Maisonave (http::\\www.axter.com)";
@@ -645,12 +805,12 @@ namespace sqlite3pp
 		bool ReturnValue = true;
 		if (m_LangsToProcess.empty())
 		{
-			for (std::uint64_t i = 1; i < (std::uint64_t)ProgLang::Last_Lang; i = i << 1)
+			for (std::uint64_t i = 1; i < static_cast<std::uint64_t>(ProgLang::Last_Lang); i = i << 1)
 			{
 				if ((m_BitListOfLangsToProcess & i) == i)
 				{
 					m_LangsToProcess.insert(i);
-					if (!AddProgLangSettings((ProgLang)i))
+					if (!AddProgLangSettings(static_cast<ProgLang>(i)))
 						ReturnValue = false;
 				}
 			}
@@ -659,7 +819,7 @@ namespace sqlite3pp
 		{
 			for(auto& lang : m_LangsToProcess)
 			{
-				if (!AddProgLangSettings((ProgLang)lang))
+				if (!AddProgLangSettings(static_cast<ProgLang>(lang)))
 					ReturnValue = false;
 			}
 		}

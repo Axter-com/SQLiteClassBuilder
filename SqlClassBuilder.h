@@ -39,6 +39,7 @@ namespace sqlite3pp
 		Python_Lang = 1024,
 		VisualBasic_Lang = 2048,
 		ALL_Supported_Langs = CPP_Lang,
+		ALL_Beta_Supported_Langs = CPP_Lang,
 		ALL_Supported_And_Langs_UnderConstruction = C_Lang | CPP_Lang,
 
 		// Languages not yet ready for consideration
@@ -126,7 +127,29 @@ namespace sqlite3pp
 		ProgLang m_ProgLang = ProgLang::CPP_Lang;
 	};
 
+	enum ChangeDetails
+	{
+		TableOrViewName = 0,
+		WasColumnName = 1, // This bit is set if it was a column name, and not set if it was a table or view name
+		InvalidChars = 2,
+		ChangedFirstChar = 4,
+		UppperCaseKeywordConflict = 8,
+		LowerCaseKeywordConflict = 16,
+		MixCaseKeywordConflict = 32,
+		SpaceCharInName = 64,
+		FixedKeywordConflictWithMakeLowerCase = 128, // Fixed keyword conflict by changing name to all lower case
+		FixedKeywordConflictWithMakeUpperCase = 256, // Fixed keyword conflict by changing name to all upper case
+		FixedKeywordConflictWithMakeMixCase = 512, // Fixed keyword conflict by changing name to mix case (first letter upper case, rest lower case)
+		FixedKeywordConflictWithMakeRevMixCase = 1024, // Fixed keyword conflict by changing name to reverse mix case (first letter lower case, rest upper case)
+		FixedKeywordConflictWithSpecialMixUpperCase = 2048, // Fixed keyword conflict by changing name to upper case, and then iterate through characters making the lower case and check for keyword conflicts.
+		FixedKeywordConflictWithSpecialMixLowerCase = 4096, // Fixed keyword conflict by changing name to lower case, and then iterate through characters making the lower case and check for keyword conflicts.
+		FixedKeywordConflictWithAppendUnderscore = 8192, // Fixed keyword conflict by appending multiple underscore charcters to name
+		NeedToUseOriginalSqlNameInSqlQuery = 16384, // When this bit is set, it indicates that extra logic is needed to make sure original SQL name is used in SQL queries. 
+		//	This bit is set when any of the following bits are set: FixedKeywordConflictWithAppendUnderscore, InvalidChars, ChangedFirstChar, and SpaceCharInName.
+	};
+
 	class SqlClassBuilderDbData; // Hide SQLite details so it's not exposed in the header file, and to make it easier to support other database types in the future.
+	class NameChangeDetails; // Used to keep track of names which were changed due to conflicts with keywords or invalid characters. This information is mainly used for reporting, documenting, and  debugging purposes.
 
 	class SqlClassBuilder
 	{
@@ -134,7 +157,10 @@ namespace sqlite3pp
 		SqlClassBuilder(const std::string& DB_filename, DatabaseTyoe databaseTyoe = DatabaseTyoe::SQLite_Database); // Only SQLite is supported at this time.
 		~SqlClassBuilder(); // Deletes m_pData, which closes the database connection.
 
-		virtual bool CreateAllFiles(std::uint64_t BitListOfTargetLanguages = (std::uint64_t)ProgLang::ALL_Supported_Langs); // Using std::uint64_t type instead of ProgLang enum so-as to allow multiple languages to be specified, and to allow future expansion for languages not included in the enum
+		// The following function just calls the CreateAllFiles which takes std::uint64_t, and therefore is not virtual. Add any overriding logic in the CreateAllFiles which takes std::uint64_t.
+		bool CreateAllFiles(ProgLang BitListOfTargetLanguages = ProgLang::ALL_Supported_Langs);
+
+		virtual bool CreateAllFiles(std::uint64_t BitListOfTargetLanguages); // Using std::uint64_t type instead of ProgLang enum so-as to allow multiple languages to be specified, and to allow future expansion for languages not included in the enum
 		virtual bool CreateAllFiles(std::set<std::uint64_t> AllTheProgrammingLanguagesToProcess); // Can be overridden for custom programming languages requirements.
 
 		const CommonProgLangSettings& GetProgLangCommonSettings(ProgLang lang) { return m_ProgLangCommonSettings[lang]; }
@@ -148,6 +174,7 @@ namespace sqlite3pp
 		static void ClearOtherProgLangKeywordsMixCase() { m_OtherProgLangKeywordsMixCase.clear(); }
 		static void ClearOtherProgLangKeywordsLowerCase() { m_OtherProgLangKeywordsLowerCase.clear(); }
 		static void ClearOtherProgLangKeywordsUpperCase() { m_OtherProgLangKeywordsUpperCase.clear(); }
+		static void SetSpaceCharReplacementCharacter(char replacement) { m_SpaceCharReplacementCharacter = replacement; }
 	protected:
 		// Following functions return false if any failure occurs.
 		virtual bool Initialize();	// Called by CreateAllFiles before creating any files. Can be overridden to perform any initialization needed before creating files for custom programming languages.
@@ -157,7 +184,18 @@ namespace sqlite3pp
 		virtual bool AddCommentsToFile(std::ofstream &myfile, ProgLang lang, const std::string& ClassName, const std::string& TableName);
 		// Returns empty string upon failure.
 		virtual std::string GetFileNameAndClassName(const std::string& TableName, std::string& FileNameOnly, std::string& ClassName, ProgLang lang); // Populates ClassName and FileNameOnly. Returns full FileName with directory path. Can be overridden for custom programming languages requirements.
-		virtual std::string InitializeValue(std::string TypeName, ProgLang lang);
+		virtual std::string InitializeValue(std::string TypeName, ProgLang lang); // Determines if the programming language needs a specific initialization value for the specified type. Returns empty string if no initialization is needed. Can be overridden for custom programming languages requirements.
+		virtual std::string MakeValidClassOrVarName(const std::string& name, bool ColumnName); // This calls the static MakeValidClassOrVarName, and virtual method can be overridden for custom programming languages requirements.
+
+		//  Note:	When changing column or table names, try to provide as much information as possible in changeDetails about what was changed and why.
+		//			This is so that it can be added to class comments for documentation purposes.
+		//			It will let the developer know why the original name is not being used, and hopefully guide them to pick a better name if they want to change it.
+		//			When possible, only the case of one or more characters are changed, so that it doesn't effect SQL queries, because SQL is case insensitive.	
+		static std::string MakeValidClassOrVarName(const std::string& name, ChangeDetails& changeDetails); //
+		static std::string ConvertToValidAlphaNum(std::string str, ChangeDetails& changeDetails);// Convert all characters to alpha-numeric, and make sure first character is a letter.
+
+		std::map<std::string, NameChangeDetails> m_NotUsingOriginalName; // key = changed name, value = original name change reason.
+		std::map<std::string, std::string> m_NeedToUseOriginalSqlNameInSqlQuery; // key = changed name, value = original name
 	private:
 		const std::string m_db_filename; // This is used to open the database, and it's used as part of class file default prefix name.
 		DatabaseTyoe m_DatabaseTyoe; // Only SQLite is supported at this time.
@@ -176,6 +214,7 @@ namespace sqlite3pp
 		static std::set<std::string> m_OtherProgLangKeywordsMixCase; // List of other programming languages mix case keywords which should not be used as class or variable names
 		static std::set<std::string> m_OtherProgLangKeywordsLowerCase; // List of other programming languages lower case keywords which should not be used as class or variable names
 		static std::set<std::string> m_OtherProgLangKeywordsUpperCase; // List of other programming languages upper case keywords which should not be used as class or variable names
+		static char m_SpaceCharReplacementCharacter; // Character used to replace any space characters in the names. Default is underscore (_). Can be changed via SetSpaceCharReplacementCharacter.
 	};
 };
 

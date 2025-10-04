@@ -1,7 +1,7 @@
 /*
 	GNU General Public License
 
-	Copyright (C) 2021 David Maisonave (www.axter.com)
+	Copyright (C) 2025 David Maisonave (www.axter.com)
 	The SQLiteClassBuilder source code is free software. You can redistribute it and/or modify it under the terms of the GNU General Public License.
 	This source code is distributed in the hope that it will be useful,	but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
@@ -9,6 +9,7 @@
 */
 
 #include "sqlite3pp_ez.h"
+#include "SqlClassBuilder.h"
 #include "cxxopts.hpp"
 #include "CommonFunctions.h"
 
@@ -27,6 +28,44 @@ Performing early exit due to error!\
 
 #define V_COUT(VB, V)		{if (sqlite3pp::sql_base::GetVerbosityLevel() >= sqlite3pp::VBLV_##VB) {std::cout << V << std::endl;} }
 
+enum DevStage {
+	RelStage = 0, // Release Stage
+	BetaStage = 1,
+	PreBetaStage = 2
+};
+
+int BuildSqlClassForAllSupportedLanguages(const std::string& DatabaseFileName, DevStage devStage)
+{
+	int ReturnValue = 0;
+	try
+	{
+		sqlite3pp::SqlClassBuilder sqlClassBuilder(DatabaseFileName);
+		sqlite3pp::ProgLang BitListOfTargetLanguages = sqlite3pp::ProgLang::ALL_Supported_Langs;
+		if (devStage == DevStage::BetaStage)
+			BitListOfTargetLanguages = sqlite3pp::ProgLang::ALL_Beta_Supported_Langs;
+		else if (devStage == DevStage::PreBetaStage)
+			BitListOfTargetLanguages = sqlite3pp::ProgLang::ALL_Supported_And_Langs_UnderConstruction;
+		if (!sqlClassBuilder.CreateAllFiles(BitListOfTargetLanguages))
+		{
+			V_COUT(ERROR, "Error: SqlClassBuilder.CreateAllFiles function returned false, because something went wrong.  Look at error output for more details.");
+			return -1;
+		}
+	}
+	catch (const std::exception& ex)
+	{
+		V_COUT(ERROR, EarlyExitErrMsg);
+		V_COUT(ERROR, "Exception occurred: " << ex.what());
+		ReturnValue = -1;
+	}
+	catch (...)
+	{
+		V_COUT(ERROR, EarlyExitErrMsg);
+		V_COUT(ERROR, "Unknown exception occurred.");
+		ReturnValue = -1;
+	}
+	return ReturnValue;
+}
+
 int main(int argc, char* argv[])
 {
 	cxxopts::Options options("SQLiteClassBuilder.exe", "SQLiteClassBuilder: Creates type safe SQL classes.\nBy David Maisonave (www.axter.com)");
@@ -44,6 +83,9 @@ int main(int argc, char* argv[])
 		("w,where", "Optional: And-Where-Clause. Can be used to specify a set of tables/views to process.\nExample1:\nSQLiteClassBuilder -d\"my.db\" -w\"AND tbl_name like 'Personnel%'\"\nExample2:\nSQLiteClassBuilder -d\"my.db\" -w\"AND tbl_name NOT like 'zzTest%'\"", cxxopts::value<std::string>()->default_value(""))
 		("v,verbosity", "Verbosity level. Default: 3.  0=No-output; 1=Error-Output-Only; 2=Err+Warn; 3=Err+Wrn+Info; 4=Err+Wrn+Info+Debug; 5=Err+Wrn+Info+Debug+Details", cxxopts::value<int>()->default_value("3"))
 		("p,nopause", "Do NOT pause before program exit. Note: If verbosity level 0, program will exit without pause unless error occurs.", cxxopts::value<bool>()->default_value("false"))
+		("l,allprglang", "Call new API SqlClassBuilder to create classes/struct for all supported languages in release stage. At this time, only database option is supported with new API.", cxxopts::value<bool>()->default_value("false"))
+		("2,beta", "Call new API SqlClassBuilder to create classes/struct for all supported languages in beta or release stages. At this time, only database option is supported with new API.", cxxopts::value<bool>()->default_value("false"))
+		("z,prebeta", "Call new API SqlClassBuilder to create classes/struct for all supported languages including languages in pre-beta (incomplete) stages. At this time, only database option is supported with new API.", cxxopts::value<bool>()->default_value("false"))
 		("h,help", "Print usage")
 		// ("d,debug", "Enable debugging", cxxopts::value<bool>()->default_value("false")) // ToDo: Delete this argument if it doesn't get used.
 		// ("c,clipboard", "Populate bla bla from clipboard", cxxopts::value<bool>()->default_value("false"), "bool")
@@ -144,6 +186,16 @@ int main(int argc, char* argv[])
 		std::string Command = "del /F /Q " + TargetPath + "\\" + arg_result["prefix"].as<std::string>() + "*" + arg_result["suffix"].as<std::string>() + "." + FileExt;
 		V_COUT(DEBUG, "Deleting existing headers. by using command:" << Command);
 		system(Command.c_str()); // ToDo: Create a cleaner method for this.
+	}
+
+	if (arg_result["allprglang"].as<bool>() || arg_result["beta"].as<bool>() || arg_result["prebeta"].as<bool>())
+	{
+		DevStage devStage = RelStage;
+		if (arg_result["beta"].as<bool>())
+			devStage = BetaStage;
+		else if (arg_result["prebeta"].as<bool>())
+			devStage = PreBetaStage;
+		return BuildSqlClassForAllSupportedLanguages(db_file_name, devStage); // Use new API SqlClassBuilder
 	}
 
 	//StrOptions
